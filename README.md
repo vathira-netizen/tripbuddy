@@ -1,0 +1,2 @@
+# tripbuddy
+Travel planning platform
