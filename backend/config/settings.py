@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.gis",
+    "django.contrib.postgres",
     "rest_framework",
     "corsheaders",
     "apps.accounts",
@@ -146,9 +147,17 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Django REST Framework
 
 REST_FRAMEWORK = {
-    "DEFAULT_PERMISSION_CLASSES": [
-        "rest_framework.permissions.AllowAny",
+    # Supabase issues the JWT; Django verifies it on every request.
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "apps.accounts.authentication.SupabaseJWTAuthentication",
     ],
+    # Locked down by default: an endpoint has to opt out explicitly (as
+    # /api/health/ does) to be reachable without a token.
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 20,
 }
 
 
@@ -158,9 +167,24 @@ REST_FRAMEWORK = {
 CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[])
 
 
-# Supabase (auth / storage) — used later by JWT auth integration.
-# Not wired into DRF authentication yet; kept here so it's available via env.
+# Supabase (auth / storage)
+#
+# SUPABASE_JWT_SECRET is the HS256 *signing secret* from
+# Supabase > Settings > API > JWT Secret — NOT the service_role key, which is
+# itself a JWT. apps.accounts.authentication verifies every bearer token with it.
+#
+# SUPABASE_SERVICE_ROLE_KEY bypasses Row-Level Security. It is server-side only
+# and must never be exposed to the browser or prefixed NEXT_PUBLIC_.
 
 SUPABASE_URL = env("SUPABASE_URL", default="")
 SUPABASE_JWT_SECRET = env("SUPABASE_JWT_SECRET", default="")
 SUPABASE_SERVICE_ROLE_KEY = env("SUPABASE_SERVICE_ROLE_KEY", default="")
+
+
+# Nominatim / OpenStreetMap geocoding (apps.accounts.geocoding)
+# Their usage policy requires an identifying User-Agent with contact details.
+
+NOMINATIM_USER_AGENT = env(
+    "NOMINATIM_USER_AGENT",
+    default="TripBuddy/1.0 (student project; contact via repository)",
+)
