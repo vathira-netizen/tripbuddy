@@ -1,0 +1,37 @@
+name,slug,lat,lng,avg_daily_budget,budget_tier,interest_tags,best_season,region,image_url
+Goa,goa,15.2993,74.1240,2500,mid,beach|nightlife|food|adventure,Nov-Feb,West,https://picsum.photos/seed/goa/600/400
+Manali,manali,32.2432,77.1892,1800,budget,hiking|trekking|adventure|nature,Mar-Jun,North,https://picsum.photos/seed/manali/600/400
+Rishikesh,rishikesh,30.0869,78.2676,1200,budget,adventure|wellness|nature|pilgrimage,Sep-Nov,North,https://picsum.photos/seed/rishikesh/600/400
+Jaipur,jaipur,26.9124,75.7873,2000,mid,heritage|history|culture|shopping,Oct-Mar,North,https://picsum.photos/seed/jaipur/600/400
+Udaipur,udaipur,24.5854,73.7125,2800,mid,heritage|culture|photography|history,Sep-Mar,West,https://picsum.photos/seed/udaipur/600/400
+Varanasi,varanasi,25.3176,82.9739,1000,budget,pilgrimage|heritage|culture|photography,Oct-Mar,North,https://picsum.photos/seed/varanasi/600/400
+Leh,leh,34.1526,77.5771,2200,mid,adventure|trekking|nature|photography,Jun-Sep,North,https://picsum.photos/seed/leh/600/400
+Munnar,munnar,10.0889,77.0595,1600,budget,nature|hiking|photography|wellness,Sep-Mar,South,https://picsum.photos/seed/munnar/600/400
+Alleppey,alleppey,9.4981,76.3388,2400,mid,nature|wellness|photography|food,Nov-Feb,South,https://picsum.photos/seed/alleppey/600/400
+Hampi,hampi,15.3350,76.4600,900,budget,heritage|history|backpacking|photography,Oct-Feb,South,https://picsum.photos/seed/hampi/600/400
+Pondicherry,pondicherry,11.9416,79.8083,2100,mid,beach|culture|food|wellness,Oct-Mar,South,https://picsum.photos/seed/pondicherry/600/400
+Darjeeling,darjeeling,27.0360,88.2627,1500,budget,nature|hiking|photography|culture,Mar-May,East,https://picsum.photos/seed/darjeeling/600/400
+Gangtok,gangtok,27.3389,88.6065,1900,mid,nature|trekking|culture|adventure,Mar-Jun,Northeast,https://picsum.photos/seed/gangtok/600/400
+Shillong,shillong,25.5788,91.8933,1700,budget,nature|hiking|nightlife|photography,Sep-May,Northeast,https://picsum.photos/seed/shillong/600/400
+Agra,agra,27.1767,78.0081,1400,budget,heritage|history|culture|photography,Oct-Mar,North,https://picsum.photos/seed/agra/600/400
+Mysore,mysore,12.2958,76.6394,1300,budget,heritage|history|culture|shopping,Oct-Mar,South,https://picsum.photos/seed/mysore/600/400
+Coorg,coorg,12.3375,75.8069,2000,mid,nature|trekking|wildlife|food,Oct-Mar,South,https://picsum.photos/seed/coorg/600/400
+Andaman Islands,andaman,11.7401,92.6586,4500,comfort,beach|adventure|nature|photography,Nov-Apr,Islands,https://picsum.photos/seed/andaman/600/400
+Kochi,kochi,9.9312,76.2673,2200,mid,heritage|culture|food|shopping,Oct-Mar,South,https://picsum.photos/seed/kochi/600/400
+Jaisalmer,jaisalmer,26.9157,70.9083,1800,budget,heritage|adventure|history|photography,Nov-Feb,West,https://picsum.photos/seed/jaisalmer/600/400
+Ladakh Nubra,nubra-valley,34.6868,77.5619,2600,mid,adventure|trekking|nature|photography,Jun-Sep,North,https://picsum.photos/seed/nubra-valley/600/400
+Kasol,kasol,32.0100,77.3150,1100,budget,backpacking|trekking|nature|nightlife,Mar-Jun,North,https://picsum.photos/seed/kasol/600/400
+Spiti Valley,spiti-valley,32.2464,78.0349,2000,mid,adventure|trekking|nature|photography,Jun-Sep,North,https://picsum.photos/seed/spiti-valley/600/400
+Ooty,ooty,11.4064,76.6932,1600,budget,nature|hiking|photography|shopping,Apr-Jun,South,https://picsum.photos/seed/ooty/600/400
+Rann of Kutch,rann-of-kutch,23.7337,70.8022,2500,mid,heritage|culture|photography|adventure,Nov-Feb,West,https://picsum.photos/seed/rann-of-kutch/600/400
+Amritsar,amritsar,31.6340,74.8723,1300,budget,pilgrimage|heritage|food|culture,Oct-Mar,North,https://picsum.photos/seed/amritsar/600/400
+Khajuraho,khajuraho,24.8318,79.9199,1200,budget,heritage|history|culture|photography,Oct-Mar,Central,https://picsum.photos/seed/khajuraho/600/400
+Tawang,tawang,27.5861,91.8594,2100,mid,nature|trekking|pilgrimage|photography,Mar-Oct,Northeast,https://picsum.photos/seed/tawang/600/400
+Gokarna,gokarna,14.5479,74.3188,1200,budget,beach|backpacking|wellness|nature,Oct-Mar,West,https://picsum.photos/seed/gokarna/600/400
+Bir Billing,bir-billing,32.0500,76.7200,1500,budget,adventure|nature|trekking|photography,Mar-Jun,North,https://picsum.photos/seed/bir-billing/600/400
+Wayanad,wayanad,11.6854,76.1320,1700,budget,nature|wildlife|trekking|photography,Oct-May,South,https://picsum.photos/seed/wayanad/600/400
+Mahabaleshwar,mahabaleshwar,17.9307,73.6477,2000,mid,nature|hiking|food|photography,Oct-Jun,West,https://picsum.photos/seed/mahabaleshwar/600/400
+Kaziranga,kaziranga,26.5775,93.1711,2800,mid,wildlife|nature|photography|adventure,Nov-Apr,Northeast,https://picsum.photos/seed/kaziranga/600/400
+Pushkar,pushkar,26.4899,74.5511,1100,budget,pilgrimage|culture|heritage|shopping,Oct-Mar,West,https://picsum.photos/seed/pushkar/600/400
+Kodaikanal,kodaikanal,10.2381,77.4892,1500,budget,nature|hiking|photography|wellness,Apr-Jun,South,https://picsum.photos/seed/kodaikanal/600/400
+Dharamshala,dharamshala,32.2190,76.3234,1600,budget,nature|trekking|culture|wellness,Mar-Jun,North,https://picsum.photos/seed/dharamshala/600/400
