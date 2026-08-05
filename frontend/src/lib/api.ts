@@ -71,3 +71,17 @@ export const api = {
     apiFetch<T>(path, { method: "PUT", body: JSON.stringify(body) }),
   delete: <T>(path: string) => apiFetch<T>(path, { method: "DELETE" }),
 };
+
+/**
+ * For non-JSON downloads (e.g. the budget CSV export). A plain `<a href>`
+ * can't carry the Authorization header, so callers fetch the file as a Blob
+ * here and trigger the browser download themselves.
+ */
+export async function apiFetchBlob(path: string): Promise<Blob> {
+  const headers = new Headers(await authHeader());
+  const response = await fetch(`${API_URL}${path}`, { headers });
+  if (!response.ok) {
+    throw new ApiError(response.status, await response.text());
+  }
+  return response.blob();
+}
