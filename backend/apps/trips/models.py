@@ -19,6 +19,12 @@ class Trip(models.Model):
     start_date = models.DateField(null=True, blank=True)
     end_date = models.DateField(null=True, blank=True)
 
+    # Overall budget target for the trip; drives the Budget Planner's
+    # running-total-vs-target bar. Optional — a trip can go unbudgeted.
+    target_amount = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True
+    )
+
     # Read-only public sharing (Phase 5). Kept here so the schema is frozen now.
     share_token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     is_public = models.BooleanField(default=False)
