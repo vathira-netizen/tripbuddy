@@ -137,9 +137,9 @@ def budget(style_a, style_b, tier_order=BUDGET_TIER_ORDER):
         return 0.0
     if a == b:
         return 1.0
+    # Reaching here means a != b and both are in `order`, so it holds at least
+    # two entries and the span below cannot be zero.
     span = len(order) - 1
-    if span <= 0:
-        return 1.0
     return clamp(1.0 - abs(order.index(a) - order.index(b)) / span)
 
 
