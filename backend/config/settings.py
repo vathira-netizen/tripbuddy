@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     "django.contrib.gis",
     "django.contrib.postgres",
     "rest_framework",
+    "drf_spectacular",
     "corsheaders",
     "apps.accounts",
     "apps.destinations",
@@ -158,6 +159,34 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 20,
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+
+
+# drf-spectacular (OpenAPI schema + /api/docs/)
+#
+# The docs pages are browsable without a token so the API can be explored, but
+# they only *describe* the endpoints — every documented call still goes through
+# SupabaseJWTAuthentication, so "Try it out" needs a real bearer token.
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "TripBuddy API",
+    "DESCRIPTION": (
+        "Budget-first travel planning: destinations, travel buddies, trips, "
+        "itineraries and budgets. Authenticate with a Supabase access token "
+        "sent as `Authorization: Bearer <token>`."
+    ),
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    # budget_style is declared on both the profile and onboarding serializers;
+    # pin one name so the generated enum isn't split into BudgetStyleEnum /
+    # BudgetStyle1Enum.
+    "ENUM_NAME_OVERRIDES": {
+        "BudgetStyleEnum": "apps.common.choices.BudgetStyle",
+    },
+    "SERVE_PERMISSIONS": ["rest_framework.permissions.AllowAny"],
+    # Endpoints live under /api/; drop that prefix from the displayed paths.
+    "SCHEMA_PATH_PREFIX": "/api",
 }
 
 
@@ -179,6 +208,16 @@ CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[])
 SUPABASE_URL = env("SUPABASE_URL", default="")
 SUPABASE_JWT_SECRET = env("SUPABASE_JWT_SECRET", default="")
 SUPABASE_SERVICE_ROLE_KEY = env("SUPABASE_SERVICE_ROLE_KEY", default="")
+
+
+# Buddy matching (apps.matching)
+#
+# The component weights themselves live in apps/matching/constants.py (they are
+# a distribution that must stay coherent, not independent knobs). Only the
+# default search radius is environment-tunable, so it can be widened for a
+# sparse region without a deploy.
+
+MATCH_DEFAULT_RADIUS_KM = env.int("MATCH_DEFAULT_RADIUS_KM", default=150)
 
 
 # Nominatim / OpenStreetMap geocoding (apps.accounts.geocoding)
