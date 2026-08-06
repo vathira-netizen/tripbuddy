@@ -124,6 +124,13 @@ def test_budget_is_case_insensitive():
     assert C.budget("Budget", "budget") == 1.0
 
 
+def test_budget_survives_a_single_tier_vocabulary():
+    # If the tier vocabulary ever collapsed to one value, everyone would agree
+    # on budget rather than the scorer dividing by a zero span.
+    assert C.budget("only", "only", tier_order=["only"]) == 1.0
+    assert C.budget("only", "other", tier_order=["only"]) == 0.0
+
+
 # --- A: age band ----------------------------------------------------------
 
 
@@ -571,6 +578,45 @@ def test_shared_destination_boosts_the_score_and_is_explained(settings_secret):
 
 
 @pytest.mark.django_db
+def test_retuning_the_weights_reorders_the_ranking(settings_secret, monkeypatch):
+    """The weights are the tuning surface (TBD-1), so tuning must actually bite.
+
+    Near-but-unlike versus far-but-alike is the case that separates them: which
+    one wins is a statement about the weights, not about the data.
+    """
+    _, me = make_traveller("me", at=BLR, interests=("trekking", "food"))
+    make_traveller(
+        "nearstranger", at=BLR, interests=("shopping",), languages=("odia",)
+    )
+    make_traveller("fartwin", at=CHENNAI, interests=("trekking", "food"))
+
+    def ranking():
+        page = client_for(me, settings_secret).get("/api/buddies/?radius_km=500")
+        return [r["display_name"] for r in page.data["results"]]
+
+    # Interests outweigh proximity by default, so the distant twin wins.
+    assert ranking() == ["Fartwin", "Nearstranger"]
+
+    # Make proximity dominate and the order inverts.
+    monkeypatch.setitem(C.WEIGHTS, "wG", 0.90)
+    monkeypatch.setitem(C.WEIGHTS, "wJ", 0.02)
+    monkeypatch.setitem(C.WEIGHTS, "wB", 0.02)
+    monkeypatch.setitem(C.WEIGHTS, "wL", 0.02)
+    monkeypatch.setitem(C.WEIGHTS, "wA", 0.02)
+    monkeypatch.setitem(C.WEIGHTS, "wD", 0.02)
+
+    assert ranking() == ["Nearstranger", "Fartwin"]
+
+
+@pytest.mark.django_db
+def test_weights_are_restored_after_tuning(monkeypatch):
+    # Guards the test above: monkeypatch must not leak a retuned weight into
+    # the rest of the suite.
+    assert sum(C.WEIGHTS.values()) == pytest.approx(1.0)
+    assert C.WEIGHTS["wJ"] == 0.30
+
+
+@pytest.mark.django_db
 def test_explanation_chips_describe_the_match(settings_secret):
     _, me = make_traveller("me", at=BLR)
     make_traveller("twin", at=BLR)
@@ -591,6 +637,28 @@ def test_buddies_tells_the_user_to_set_a_city_when_they_have_no_area(settings_se
     assert response.status_code == 409
     assert response.data["code"] == "no_area"
     assert response.data["results"] == []
+
+
+@pytest.mark.django_db
+def test_service_returns_nothing_for_a_traveller_with_no_area():
+    # The view answers 409 before reaching this, but the service must not
+    # depend on the view for that guard.
+    user, _ = make_traveller("placeless", at=None)
+    make_traveller("somebody", at=BLR)
+
+    assert list(services.candidate_profiles(user, 150)) == []
+    assert services.rank_candidates(user) == []
+
+
+@pytest.mark.django_db
+def test_service_returns_nothing_for_a_user_with_no_profile():
+    # Authentication normally creates a Profile, so this is the "should never
+    # happen" path: it must return empty, not raise.
+    user = User.objects.create_user(username="profileless")
+    make_traveller("somebody", at=BLR)
+
+    assert list(services.candidate_profiles(user, 150)) == []
+    assert services.rank_candidates(user) == []
 
 
 @pytest.mark.django_db
