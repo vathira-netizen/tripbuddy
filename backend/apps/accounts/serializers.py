@@ -74,7 +74,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
 
-    def get_area(self, obj):
+    def get_area(self, obj) -> dict[str, float] | None:
         """The user's own approximate point, rounded at storage time."""
         if obj.area_point is None:
             return None

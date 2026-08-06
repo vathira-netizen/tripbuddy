@@ -24,6 +24,7 @@ import jwt
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
+from drf_spectacular.extensions import OpenApiAuthenticationExtension
 from rest_framework import authentication, exceptions
 
 from apps.accounts.models import Profile
@@ -202,3 +203,25 @@ class SupabaseJWTAuthentication(authentication.BaseAuthentication):
             return profile.user
 
         return user
+
+
+class SupabaseJWTAuthenticationScheme(OpenApiAuthenticationExtension):
+    """Teaches drf-spectacular how to document the authentication above.
+
+    Without this, schema generation warns that it cannot resolve the
+    authenticator and the docs render no "Authorize" control at all.
+    """
+
+    target_class = "apps.accounts.authentication.SupabaseJWTAuthentication"
+    name = "SupabaseJWT"
+
+    def get_security_definition(self, auto_schema):
+        return {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+            "description": (
+                "Supabase access token. Sign in through the frontend, then send "
+                "it as `Authorization: Bearer <token>`."
+            ),
+        }

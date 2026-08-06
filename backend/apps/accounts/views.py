@@ -11,6 +11,7 @@ from apps.accounts.serializers import (
     PublicProfileSerializer,
 )
 from apps.common.permissions import IsSelfProfile
+from apps.common.querysets import is_authenticated
 
 
 class ProfileViewSet(viewsets.GenericViewSet):
@@ -97,4 +98,6 @@ class PublicProfileViewSet(viewsets.ReadOnlyModelViewSet):
     lookup_field = "supabase_user_id"
 
     def get_queryset(self):
+        if not is_authenticated(self.request.user):
+            return Profile.objects.none()
         return Profile.objects.filter(onboarded=True).exclude(user=self.request.user)

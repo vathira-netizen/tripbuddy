@@ -39,7 +39,7 @@ class Trip(models.Model):
         return self.title
 
     @property
-    def nights(self):
+    def nights(self) -> int:
         if not (self.start_date and self.end_date):
             return 0
         return max((self.end_date - self.start_date).days, 0)
