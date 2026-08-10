@@ -32,13 +32,13 @@ class DestinationSerializer(serializers.ModelSerializer):
             "distance_km",
         ]
 
-    def get_lat(self, obj):
+    def get_lat(self, obj) -> float:
         return obj.point.y
 
-    def get_lng(self, obj):
+    def get_lng(self, obj) -> float:
         return obj.point.x
 
-    def get_distance_km(self, obj):
+    def get_distance_km(self, obj) -> float | None:
         distance = getattr(obj, "distance", None)
         return round(distance.km, 1) if distance is not None else None
 

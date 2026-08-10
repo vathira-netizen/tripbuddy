@@ -18,6 +18,9 @@ __pycache__/
 *.pyo
 *.pyd
 .pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
 
 # Node / frontend
 frontend/node_modules/
