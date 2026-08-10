@@ -16,14 +16,34 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import include, path
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularRedocView,
+    SpectacularSwaggerView,
+)
 
 from config.views import health
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/health/', health, name='health'),
+    # API documentation. /api/schema/ serves the raw OpenAPI document; the two
+    # UIs below render it.
+    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
+    path(
+        'api/docs/',
+        SpectacularSwaggerView.as_view(url_name='schema'),
+        name='swagger-ui',
+    ),
+    path(
+        'api/redoc/',
+        SpectacularRedocView.as_view(url_name='schema'),
+        name='redoc',
+    ),
     path('api/', include('apps.accounts.urls')),
     path('api/', include('apps.destinations.urls')),
     path('api/', include('apps.trips.urls')),
     path('api/', include('apps.budgets.urls')),
+    path('api/', include('apps.matching.urls')),
+    path('api/', include('apps.connections.urls')),
 ]

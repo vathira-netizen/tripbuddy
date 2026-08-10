@@ -17,6 +17,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.common.permissions import IsOwner
+from apps.common.querysets import is_authenticated
 from apps.destinations.models import Destination, SavedDestination
 from apps.destinations.serializers import (
     DestinationSerializer,
@@ -110,6 +111,8 @@ class SavedDestinationViewSet(
     permission_classes = [IsAuthenticated, IsOwner]
 
     def get_queryset(self):
+        if not is_authenticated(self.request.user):
+            return SavedDestination.objects.none()
         return SavedDestination.objects.select_related("destination").filter(
             user=self.request.user
         )
