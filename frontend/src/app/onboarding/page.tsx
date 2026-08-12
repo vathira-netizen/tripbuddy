@@ -72,7 +72,7 @@ export default function OnboardingPage() {
     setLoading(true);
     try {
       await api.post<Profile>("/api/profile/onboarding/", parsed.data);
-      router.push("/profile");
+      router.push("/discover");
       router.refresh();
     } catch (err) {
       if (err instanceof ApiError) {
