@@ -131,6 +131,53 @@ export const unshareTrip = (tripId: number) =>
 export const getSharedTrip = (token: string) =>
   api.get<SharedTrip>(`/api/share/${token}/`);
 
+// --- AI itinerary generation (Phase 6) --------------------------------------
+// The Grok key lives only on the Django server; the browser only ever sees the
+// already-generated, budget-validated draft below.
+
+export interface AiDraftItem {
+  title: string;
+  category: string;
+  est_cost: string;
+  location: string;
+  notes: string;
+}
+
+export interface AiDraftDay {
+  day_index: number;
+  items: AiDraftItem[];
+}
+
+export interface AiDraft {
+  days: AiDraftDay[];
+  target: string | null;
+  total: string;
+  over_budget: boolean;
+  per_category: Record<string, string>;
+  offending_items: AiDraftItem[];
+  provider: string;
+  model: string;
+}
+
+export interface GenerateParams {
+  style?: string;
+  transport_pref?: string;
+  accommodation_pref?: string;
+}
+
+export const generateItinerary = (tripId: number, params: GenerateParams) =>
+  api.post<AiDraft>(`/api/trips/${tripId}/generate-itinerary/`, params);
+
+export const applyItinerary = (
+  tripId: number,
+  days: AiDraftDay[],
+  addToBudget: boolean,
+) =>
+  api.post<ItineraryItem[]>(`/api/trips/${tripId}/apply-itinerary/`, {
+    days,
+    add_to_budget: addToBudget,
+  });
+
 /** Day column labels from a trip's date range, falling back to "Day N". */
 export function dayLabels(
   startDate: string | null,
