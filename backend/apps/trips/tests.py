@@ -340,3 +340,129 @@ def test_only_owner_can_share(settings_secret):
     # Collaborator can read the trip but cannot publish it.
     assert friend.post(f"/api/trips/{trip_id}/share/").status_code == 403
     assert Trip.objects.get(pk=trip_id).is_public is False
+
+
+# --- Phase 6: AI itinerary generation ---------------------------------------
+# call_llm is monkeypatched everywhere below — no test makes a live API call.
+
+RECORDED_PLAN = """
+{"days": [
+  {"items": [
+    {"title": "Train to Goa", "category": "Transport", "est_cost": 800},
+    {"title": "Hostel", "category": "Stay", "est_cost": 600}
+  ]},
+  {"items": [
+    {"title": "Beach lunch", "category": "Food", "est_cost": 400}
+  ]}
+]}
+"""
+
+
+@pytest.mark.django_db
+def test_generate_itinerary_returns_validated_draft(client, monkeypatch):
+    monkeypatch.setattr("apps.trips.ai_service.call_llm", lambda prompt: RECORDED_PLAN)
+    trip_id = client.post(
+        "/api/trips/", {"title": "Goa", "target_amount": "5000"}, format="json"
+    ).data["id"]
+
+    resp = client.post(
+        f"/api/trips/{trip_id}/generate-itinerary/",
+        {"style": "relaxed", "transport_pref": "train"},
+        format="json",
+    )
+    assert resp.status_code == 200
+    assert resp.data["total"] == "1800"
+    assert resp.data["over_budget"] is False
+    assert len(resp.data["days"]) == 2
+    # Nothing was persisted — it's only a draft.
+    assert not ItineraryItem.objects.filter(trip_id=trip_id).exists()
+
+
+@pytest.mark.django_db
+def test_generate_itinerary_flags_over_budget(client, monkeypatch):
+    monkeypatch.setattr("apps.trips.ai_service.call_llm", lambda prompt: RECORDED_PLAN)
+    trip_id = client.post(
+        "/api/trips/", {"title": "Goa", "target_amount": "500"}, format="json"
+    ).data["id"]
+
+    resp = client.post(f"/api/trips/{trip_id}/generate-itinerary/", {}, format="json")
+    assert resp.status_code == 200
+    assert resp.data["over_budget"] is True
+    assert len(resp.data["offending_items"]) >= 1
+
+
+@pytest.mark.django_db
+def test_generate_itinerary_503_when_unconfigured(client, settings):
+    # No monkeypatch: an empty key makes call_llm raise LLMConfigError, still
+    # with no network touched.
+    settings.GROK_API_KEY = ""
+    trip_id = client.post("/api/trips/", {"title": "Goa"}, format="json").data["id"]
+    resp = client.post(f"/api/trips/{trip_id}/generate-itinerary/", {}, format="json")
+    assert resp.status_code == 503
+
+
+@pytest.mark.django_db
+def test_generate_itinerary_requires_membership(settings_secret, monkeypatch):
+    monkeypatch.setattr("apps.trips.ai_service.call_llm", lambda prompt: RECORDED_PLAN)
+    other = authed_client(str(uuid.uuid4()), "other@example.com")
+    trip_id = other.post("/api/trips/", {"title": "Theirs"}, format="json").data["id"]
+
+    stranger = authed_client(str(uuid.uuid4()), "stranger@example.com")
+    resp = stranger.post(f"/api/trips/{trip_id}/generate-itinerary/", {}, format="json")
+    assert resp.status_code == 404  # scoped out of the queryset
+
+
+@pytest.mark.django_db
+def test_apply_itinerary_persists_items(client):
+    trip_id = client.post("/api/trips/", {"title": "Goa"}, format="json").data["id"]
+    # A pre-existing item so we prove the draft appends, not overwrites.
+    client.post(
+        "/api/itinerary-items/",
+        {"trip": trip_id, "day_index": 0, "position": 0, "title": "Existing"},
+        format="json",
+    )
+
+    payload = {
+        "add_to_budget": True,
+        "days": [
+            {
+                "day_index": 0,
+                "items": [
+                    {"title": "Train to Goa", "category": "Transport", "est_cost": "800"}
+                ],
+            },
+            {
+                "day_index": 1,
+                "items": [
+                    {"title": "Beach lunch", "category": "Food", "est_cost": "400"}
+                ],
+            },
+        ],
+    }
+    resp = client.post(
+        f"/api/trips/{trip_id}/apply-itinerary/", payload, format="json"
+    )
+    assert resp.status_code == 201
+    assert ItineraryItem.objects.filter(trip_id=trip_id).count() == 3  # 1 + 2
+    # Appended after the existing day-0 item.
+    appended = ItineraryItem.objects.get(trip_id=trip_id, title="Train to Goa")
+    assert (appended.day_index, appended.position) == (0, 1)
+    # add_to_budget mirrored the costs into the Budget Planner.
+    from apps.budgets.models import BudgetItem
+
+    assert BudgetItem.objects.filter(trip_id=trip_id).count() == 2
+
+
+@pytest.mark.django_db
+def test_apply_itinerary_denied_to_non_member(settings_secret):
+    owner = authed_client(str(uuid.uuid4()), "owner@example.com")
+    trip_id = owner.post("/api/trips/", {"title": "Theirs"}, format="json").data["id"]
+    stranger = authed_client(str(uuid.uuid4()), "stranger@example.com")
+
+    resp = stranger.post(
+        f"/api/trips/{trip_id}/apply-itinerary/",
+        {"days": [{"day_index": 0, "items": [{"title": "X", "category": "Food"}]}]},
+        format="json",
+    )
+    assert resp.status_code == 404
+    assert not ItineraryItem.objects.filter(title="X").exists()
