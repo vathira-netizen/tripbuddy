@@ -2,6 +2,7 @@ from django.db.models import Q
 from rest_framework import serializers
 
 from apps.accounts.models import Profile
+from apps.budgets.models import BudgetItem
 from apps.common.permissions import is_trip_member
 from apps.common.querysets import accepted_connections
 from apps.trips.models import ItineraryItem, Trip, TripCollaborator
@@ -157,3 +158,45 @@ class PublicTripSerializer(serializers.ModelSerializer):
     def get_owner_name(self, obj) -> str:
         profile = getattr(obj.owner, "profile", None)
         return profile.display_name if profile else ""
+
+
+# --- Phase 6: AI itinerary generation ---------------------------------------
+
+
+class GenerateParamsSerializer(serializers.Serializer):
+    """Body of POST /api/trips/{id}/generate-itinerary/."""
+
+    style = serializers.CharField(required=False, allow_blank=True, default="")
+    transport_pref = serializers.CharField(
+        required=False, allow_blank=True, default=""
+    )
+    accommodation_pref = serializers.CharField(
+        required=False, allow_blank=True, default=""
+    )
+
+
+class DraftItemSerializer(serializers.Serializer):
+    """One item of an accepted AI draft, re-validated on the way back in."""
+
+    title = serializers.CharField(max_length=200)
+    category = serializers.ChoiceField(
+        choices=BudgetItem.Category.values, default=BudgetItem.Category.OTHER
+    )
+    est_cost = serializers.DecimalField(
+        max_digits=10, decimal_places=2, default=0, min_value=0
+    )
+    location = serializers.CharField(required=False, allow_blank=True, default="")
+    notes = serializers.CharField(required=False, allow_blank=True, default="")
+
+
+class DraftDaySerializer(serializers.Serializer):
+    day_index = serializers.IntegerField(min_value=0)
+    items = DraftItemSerializer(many=True)
+
+
+class ApplyItinerarySerializer(serializers.Serializer):
+    """Body of POST /api/trips/{id}/apply-itinerary/ — persist an accepted draft."""
+
+    days = DraftDaySerializer(many=True)
+    # Also mirror the plan into the Budget Planner as BudgetItems.
+    add_to_budget = serializers.BooleanField(default=False)

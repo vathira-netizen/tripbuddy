@@ -9,10 +9,14 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from apps.budgets import services
+from apps.budgets.models import BudgetItem
 from apps.common.permissions import IsTripMember, IsTripOwner
 from apps.common.querysets import visible_itinerary_items, visible_trips
+from apps.trips import ai_service
 from apps.trips.models import ItineraryItem, Trip, TripCollaborator
 from apps.trips.serializers import (
+    ApplyItinerarySerializer,
+    GenerateParamsSerializer,
     InviteSerializer,
     ItineraryItemSerializer,
     PublicTripSerializer,
@@ -131,6 +135,90 @@ class TripViewSet(
         trip.save(update_fields=["is_public", "updated_at"])
         return Response(
             TripSerializer(trip, context={"request": self.request}).data
+        )
+
+    @extend_schema(
+        summary="Draft an itinerary with the AI generator (not persisted)",
+        request=GenerateParamsSerializer,
+    )
+    @action(detail=True, methods=["post"], url_path="generate-itinerary")
+    def generate_itinerary(self, request, pk=None):
+        """Owner/collaborators only. Returns a budget-validated DRAFT.
+
+        The model's costs are re-summed against the trip budget in
+        apps.trips.ai_service — an over-budget plan is flagged, never hidden.
+        """
+        trip = self.get_object()
+        params = GenerateParamsSerializer(data=request.data)
+        params.is_valid(raise_exception=True)
+        try:
+            draft = ai_service.generate_itinerary(trip, params.validated_data)
+        except ai_service.LLMConfigError:
+            return Response(
+                {"detail": "AI itinerary generation is not configured on the server."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except ai_service.LLMError:
+            return Response(
+                {"detail": "The AI service is unavailable right now. Try again."},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+        return Response(draft)
+
+    @extend_schema(
+        summary="Persist an accepted AI draft as itinerary items",
+        request=ApplyItinerarySerializer,
+        responses={201: ItineraryItemSerializer(many=True)},
+    )
+    @action(detail=True, methods=["post"], url_path="apply-itinerary")
+    def apply_itinerary(self, request, pk=None):
+        """Owner/collaborators only. Appends the draft's items to the board."""
+        trip = self.get_object()
+        serializer = ApplyItinerarySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        days = serializer.validated_data["days"]
+        add_to_budget = serializer.validated_data["add_to_budget"]
+
+        # Append after whatever already sits in each day.
+        next_position: dict[int, int] = {}
+        for row in trip.itinerary_items.values("day_index", "position"):
+            day = row["day_index"]
+            next_position[day] = max(next_position.get(day, -1), row["position"])
+
+        new_items, new_budget_items = [], []
+        for day in days:
+            day_index = day["day_index"]
+            for item in day["items"]:
+                position = next_position.get(day_index, -1) + 1
+                next_position[day_index] = position
+                new_items.append(
+                    ItineraryItem(
+                        trip=trip,
+                        day_index=day_index,
+                        position=position,
+                        title=item["title"],
+                        notes=item.get("notes", ""),
+                    )
+                )
+                if add_to_budget and item["est_cost"]:
+                    new_budget_items.append(
+                        BudgetItem(
+                            trip=trip,
+                            category=item["category"],
+                            label=item["title"],
+                            amount=item["est_cost"],
+                        )
+                    )
+
+        created = ItineraryItem.objects.bulk_create(new_items)
+        if new_budget_items:
+            BudgetItem.objects.bulk_create(new_budget_items)
+
+        return Response(
+            ItineraryItemSerializer(
+                created, many=True, context={"request": request}
+            ).data,
+            status=status.HTTP_201_CREATED,
         )
 
     @action(detail=True, methods=["get"], url_path="budget-summary")
