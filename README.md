@@ -131,5 +131,49 @@ npm run dev                          # http://localhost:3000
   distance bucket, score meter and explanation chips, and an incoming-requests
   panel with accept / decline / block.
 
+## Phase 7 prerequisites — messaging
+
+- **Gating:** `apps.connections.views.can_message(user, other)` is the single
+  predicate for "may these two exchange messages?" — true only on an `accepted`
+  connection. Blocking sets the status away from `accepted`, so it revokes
+  messaging with no extra check anywhere.
+- **Model + RLS:** `messaging_message` has RLS enabled, no grants to `anon`, and
+  `SELECT` only for `authenticated` through the
+  `messaging_message_select_participants` policy.
+- **Reads are gated on `accepted` too** (migration `0003`). The original policy
+  only checked *participation*, which was weaker than the API rule: a blocked
+  traveller kept live read access to the conversation history through Realtime.
+  The policy now calls `tripbuddy_can_read_connection`, which requires
+  `status = 'accepted'`, so a block revokes reading on the next query without any
+  application code running.
+- **Realtime** is enabled by migration `0004`, which adds the table to the
+  `supabase_realtime` publication. It is a migration rather than a dashboard
+  click so a fresh Supabase project is correct by construction — a project
+  missing it looks fine and silently delivers nothing. Realtime evaluates the
+  SELECT policy per subscriber, so the RLS rule above is what a subscriber gets.
+
+### TBD-5 — notification mechanism: **in-app only**
+
+In-app only for now, with email deliberately deferred rather than ruled out.
+
+- There is no email infrastructure to build on: no `EMAIL_BACKEND`, no provider
+  dependency, no verified sending domain. Adding it means a provider account and
+  SPF/DKIM setup — real scope, not a flag.
+- Supabase's built-in email is for auth and is rate-limited on the free tier
+  (single-digit sends per hour). It cannot carry chat notifications.
+- Realtime already delivers instantly while the app is open. Email only adds
+  value for *offline* users, and doing that acceptably needs digesting and
+  quiet-hours logic — one email per message is unacceptable. That is a feature,
+  not a switch.
+- Email leaks activity patterns into an inbox, which sits badly beside the
+  privacy stance the rest of the app takes with location.
+- Reliable sending needs a queue and worker; the backend runs on a single
+  free-tier web service with neither.
+
+To keep the door open, model notifications as **stored records with a delivery
+channel**, plus a per-user preference — then adding email later is a new
+delivery adapter over the same records, not a redesign. Do not scatter
+`send_mail` calls through the message-create path.
+
 Never expose exact coordinates to other users. Keep `SUPABASE_SERVICE_ROLE_KEY`
 and `SUPABASE_JWT_SECRET` server-side only.
