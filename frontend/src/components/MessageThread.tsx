@@ -83,12 +83,33 @@ export function MessageThread({ connection }: { connection: Connection }) {
 
   // Realtime: append inserts as they land.
   useEffect(() => {
+    let cancelled = false;
+
     const unsubscribe = subscribeToMessages(
       connection.id,
       (message) => upsert(message),
-      (status) => setLive(status === "SUBSCRIBED"),
+      (status) => {
+        const subscribed = status === "SUBSCRIBED";
+        setLive(subscribed);
+        if (!subscribed) return;
+
+        // SUBSCRIBED is acknowledged slightly before the server finishes
+        // wiring the filter, so a message sent in that window never arrives.
+        // Re-read history once the channel is genuinely live and merge: the
+        // upsert dedupes by id, so anything already shown is untouched and
+        // anything missed appears. Also covers a reconnect after a drop.
+        void listMessages(connection.id)
+          .then((page) => {
+            if (!cancelled) page.results.forEach(upsert);
+          })
+          .catch(() => {
+            /* the thread is still usable from what is already loaded */
+          });
+      },
     );
+
     return () => {
+      cancelled = true;
       setLive(false);
       unsubscribe();
     };
