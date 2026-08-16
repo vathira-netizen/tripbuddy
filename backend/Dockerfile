@@ -23,4 +23,12 @@ RUN python manage.py collectstatic --noinput
 
 EXPOSE 8000
 
-CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000"]
+# Migrations run at start-up rather than in a Render preDeployCommand, because
+# pre-deploy commands require a paid instance type and the blueprint uses the
+# free one (see render.yaml).
+#
+# `migrate` is idempotent, so the repeated starts a sleeping free instance
+# causes are no-ops. If it fails the container does not start, which is the
+# right outcome: a half-migrated database serving traffic is worse than a
+# failed deploy. `exec` hands PID 1 to gunicorn so it receives signals.
+CMD ["sh", "-c", "python manage.py migrate --noinput && exec gunicorn config.wsgi:application --bind 0.0.0.0:8000"]

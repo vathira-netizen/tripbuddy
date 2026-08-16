@@ -7,6 +7,17 @@
 #
 # The frontend (frontend/) is NOT deployed by this blueprint — deploy it to
 # Vercel instead (see README.md "Deployment" section).
+#
+# Instance type: `free`, so the blueprint can be created without a card on
+# file. Two consequences worth knowing:
+#
+#   * A free service sleeps after ~15 minutes idle, and the next request pays
+#     a 30-60s cold start. That reads as a broken app to anyone testing it.
+#   * `preDeployCommand` is a paid-instance feature, so migrations cannot run
+#     there. They run at container start instead — see backend/Dockerfile.
+#
+# Switching to `starter` (paid) is the fix for both: move the migrate call back
+# into a preDeployCommand here and drop it from the Dockerfile CMD.
 
 services:
   - type: web
@@ -14,18 +25,18 @@ services:
     runtime: docker
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
-    plan: starter
+    plan: free
     healthCheckPath: /api/health/
-    # Runs migrations (incl. the CREATE EXTENSION IF NOT EXISTS postgis migration)
-    # before each deploy goes live.
-    preDeployCommand: "python manage.py migrate --noinput"
     envVars:
       - key: DJANGO_SECRET_KEY
         sync: false
       - key: DEBUG
         value: "False"
+      # Your <service>.onrender.com host.
       - key: ALLOWED_HOSTS
         sync: false
+      # Your Vercel production URL, no trailing slash. Until this is set the
+      # frontend loads but every API call fails CORS.
       - key: CORS_ALLOWED_ORIGINS
         sync: false
       - key: DATABASE_URL
@@ -36,3 +47,17 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
+
+      # AI itinerary generator (Phase 6). Server-side only — never expose these
+      # to the browser or copy them into a NEXT_PUBLIC_ variable. Without
+      # GROK_API_KEY the generate endpoint returns 503 and nothing else breaks.
+      - key: GROK_API_KEY
+        sync: false
+      - key: LLM_PROVIDER
+        value: grok
+      - key: LLM_BASE_URL
+        value: https://api.x.ai/v1
+      # Pinned explicitly: the code default is grok-2-latest, so leaving this
+      # unset would silently run a different model in production than in dev.
+      - key: LLM_MODEL
+        value: grok-4-fast
