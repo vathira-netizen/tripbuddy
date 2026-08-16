@@ -16,6 +16,7 @@ import {
   unshareTrip,
 } from "@/lib/trips";
 import ItineraryBoard from "@/components/ItineraryBoard";
+import AiItineraryPanel from "@/components/AiItineraryPanel";
 
 export default function TripPlannerPage() {
   const params = useParams<{ id: string }>();
@@ -226,6 +227,13 @@ export default function TripPlannerPage() {
           )}
         </section>
       </div>
+
+      <AiItineraryPanel
+        tripId={tripId}
+        onApplied={() => {
+          listItineraryItems(tripId).then(setItems).catch(() => {});
+        }}
+      />
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold">Itinerary</h2>
