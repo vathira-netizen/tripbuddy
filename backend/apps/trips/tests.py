@@ -7,7 +7,9 @@ import pytest
 from rest_framework.test import APIClient
 
 from apps.accounts.authentication import SUPABASE_AUDIENCE
-from apps.trips.models import Trip
+from apps.accounts.models import Profile
+from apps.connections.models import Connection
+from apps.trips.models import ItineraryItem, Trip, TripCollaborator
 
 SECRET = "test-jwt-secret"
 
@@ -37,6 +39,13 @@ def settings_secret(settings):
 def client(settings_secret):
     c = APIClient()
     c.credentials(HTTP_AUTHORIZATION=f"Bearer {make_token()}")
+    return c
+
+
+def authed_client(sub, email):
+    """A client whose token creates (on first call) a real User + Profile."""
+    c = APIClient()
+    c.credentials(HTTP_AUTHORIZATION=f"Bearer {make_token(sub=sub, email=email)}")
     return c
 
 
@@ -118,3 +127,216 @@ def test_budget_csv_export(client):
     body = resp.content.decode()
     assert "category,label,amount,payer_email,created_at" in body
     assert "Stay,Hostel,500" in body
+
+
+# --- Phase 5: itinerary items -----------------------------------------------
+
+
+@pytest.mark.django_db
+def test_itinerary_item_crud_scoped_to_members(client):
+    trip_id = client.post("/api/trips/", {"title": "Kerala"}, format="json").data["id"]
+
+    created = client.post(
+        "/api/itinerary-items/",
+        {"trip": trip_id, "day_index": 0, "position": 0, "title": "Fort Kochi"},
+        format="json",
+    )
+    assert created.status_code == 201
+    item_id = created.data["id"]
+
+    listed = client.get(f"/api/itinerary-items/?trip={trip_id}")
+    assert [i["title"] for i in listed.data["results"]] == ["Fort Kochi"]
+
+    patched = client.patch(
+        f"/api/itinerary-items/{item_id}/", {"title": "Munnar"}, format="json"
+    )
+    assert patched.status_code == 200
+    assert patched.data["title"] == "Munnar"
+
+    assert client.delete(f"/api/itinerary-items/{item_id}/").status_code == 204
+
+
+@pytest.mark.django_db
+def test_non_member_cannot_add_itinerary_item(settings_secret):
+    owner = authed_client(str(uuid.uuid4()), "owner@example.com")
+    trip_id = owner.post("/api/trips/", {"title": "Private"}, format="json").data["id"]
+
+    stranger = authed_client(str(uuid.uuid4()), "stranger@example.com")
+    resp = stranger.post(
+        "/api/itinerary-items/",
+        {"trip": trip_id, "title": "Sneaky"},
+        format="json",
+    )
+    assert resp.status_code == 400  # serializer rejects: not a member of this trip
+    assert not ItineraryItem.objects.filter(title="Sneaky").exists()
+
+
+# --- Phase 5: reorder -------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_reorder_persists_day_and_position(client):
+    trip_id = client.post("/api/trips/", {"title": "Reorder"}, format="json").data["id"]
+    a = client.post(
+        "/api/itinerary-items/",
+        {"trip": trip_id, "day_index": 0, "position": 0, "title": "A"},
+        format="json",
+    ).data["id"]
+    b = client.post(
+        "/api/itinerary-items/",
+        {"trip": trip_id, "day_index": 0, "position": 1, "title": "B"},
+        format="json",
+    ).data["id"]
+
+    # Move B to day 1, and A after it on day 0.
+    resp = client.post(
+        f"/api/trips/{trip_id}/reorder/",
+        {"items": [{"id": b, "day_index": 1, "position": 0},
+                   {"id": a, "day_index": 0, "position": 5}]},
+        format="json",
+    )
+    assert resp.status_code == 200
+
+    assert ItineraryItem.objects.get(pk=b).day_index == 1
+    assert ItineraryItem.objects.get(pk=a).position == 5
+
+
+@pytest.mark.django_db
+def test_reorder_rejects_foreign_item(client):
+    mine = client.post("/api/trips/", {"title": "Mine"}, format="json").data["id"]
+    other = authed_client(str(uuid.uuid4()), "other@example.com")
+    their_trip = other.post("/api/trips/", {"title": "Theirs"}, format="json").data["id"]
+    their_item = other.post(
+        "/api/itinerary-items/",
+        {"trip": their_trip, "title": "Not yours"},
+        format="json",
+    ).data["id"]
+
+    resp = client.post(
+        f"/api/trips/{mine}/reorder/",
+        {"items": [{"id": their_item, "day_index": 0, "position": 0}]},
+        format="json",
+    )
+    assert resp.status_code == 400
+
+
+# --- Phase 5: invite collaborators ------------------------------------------
+
+
+def _connect(user_a_sub, user_b_sub):
+    """Make an ACCEPTED connection between two already-created users."""
+    a = Profile.objects.get(supabase_user_id=user_a_sub).user
+    b = Profile.objects.get(supabase_user_id=user_b_sub).user
+    Connection.objects.create(
+        requester=a, addressee=b, status=Connection.Status.ACCEPTED
+    )
+
+
+@pytest.mark.django_db
+def test_invite_accepted_connection_grants_access(settings_secret):
+    owner_sub, friend_sub = str(uuid.uuid4()), str(uuid.uuid4())
+    owner = authed_client(owner_sub, "owner@example.com")
+    friend = authed_client(friend_sub, "friend@example.com")
+
+    trip_id = owner.post("/api/trips/", {"title": "Shared"}, format="json").data["id"]
+    # Friend cannot see it yet.
+    assert friend.get(f"/api/trips/{trip_id}/").status_code == 404
+
+    _connect(owner_sub, friend_sub)
+    resp = owner.post(
+        f"/api/trips/{trip_id}/invite/",
+        {"supabase_user_id": friend_sub},
+        format="json",
+    )
+    assert resp.status_code == 201
+    assert TripCollaborator.objects.filter(trip_id=trip_id).count() == 1
+    # Now the friend can read and edit it.
+    assert friend.get(f"/api/trips/{trip_id}/").status_code == 200
+    assert friend.post(
+        "/api/itinerary-items/",
+        {"trip": trip_id, "title": "Friend's plan"},
+        format="json",
+    ).status_code == 201
+
+
+@pytest.mark.django_db
+def test_invite_rejects_non_connection(settings_secret):
+    owner_sub, stranger_sub = str(uuid.uuid4()), str(uuid.uuid4())
+    owner = authed_client(owner_sub, "owner@example.com")
+    stranger = authed_client(stranger_sub, "stranger@example.com")
+    stranger.get("/api/trips/")  # force the stranger's Profile to exist
+
+    trip_id = owner.post("/api/trips/", {"title": "Shared"}, format="json").data["id"]
+    resp = owner.post(
+        f"/api/trips/{trip_id}/invite/",
+        {"supabase_user_id": stranger_sub},
+        format="json",
+    )
+    assert resp.status_code == 400
+    assert not TripCollaborator.objects.exists()
+
+
+@pytest.mark.django_db
+def test_only_owner_can_invite(settings_secret):
+    owner_sub, friend_sub, third_sub = (str(uuid.uuid4()) for _ in range(3))
+    owner = authed_client(owner_sub, "owner@example.com")
+    friend = authed_client(friend_sub, "friend@example.com")
+    friend.get("/api/trips/")  # create the friend's Profile
+    authed_client(third_sub, "third@example.com").get("/api/trips/")
+
+    trip_id = owner.post("/api/trips/", {"title": "Shared"}, format="json").data["id"]
+    _connect(owner_sub, friend_sub)
+    owner.post(
+        f"/api/trips/{trip_id}/invite/", {"supabase_user_id": friend_sub}, format="json"
+    )
+    # A collaborator (not the owner) may not invite a third traveller.
+    _connect(friend_sub, third_sub)
+    resp = friend.post(
+        f"/api/trips/{trip_id}/invite/", {"supabase_user_id": third_sub}, format="json"
+    )
+    assert resp.status_code == 403
+
+
+# --- Phase 5: public sharing ------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_share_link_public_then_revoked(client):
+    trip_id = client.post("/api/trips/", {"title": "Show-off"}, format="json").data["id"]
+    client.post(
+        "/api/itinerary-items/",
+        {"trip": trip_id, "day_index": 0, "position": 0, "title": "Beach"},
+        format="json",
+    )
+    token = Trip.objects.get(pk=trip_id).share_token
+
+    anon = APIClient()  # no Authorization header
+    # Not public yet -> 404.
+    assert anon.get(f"/api/share/{token}/").status_code == 404
+
+    assert client.post(f"/api/trips/{trip_id}/share/").status_code == 200
+    shared = anon.get(f"/api/share/{token}/")
+    assert shared.status_code == 200
+    assert shared.data["title"] == "Show-off"
+    assert [i["title"] for i in shared.data["itinerary_items"]] == ["Beach"]
+
+    # Revoke -> link 404s again.
+    assert client.post(f"/api/trips/{trip_id}/unshare/").status_code == 200
+    assert anon.get(f"/api/share/{token}/").status_code == 404
+
+
+@pytest.mark.django_db
+def test_only_owner_can_share(settings_secret):
+    owner_sub, friend_sub = str(uuid.uuid4()), str(uuid.uuid4())
+    owner = authed_client(owner_sub, "owner@example.com")
+    friend = authed_client(friend_sub, "friend@example.com")
+    friend.get("/api/trips/")  # create the friend's Profile
+    trip_id = owner.post("/api/trips/", {"title": "Shared"}, format="json").data["id"]
+    _connect(owner_sub, friend_sub)
+    owner.post(
+        f"/api/trips/{trip_id}/invite/", {"supabase_user_id": friend_sub}, format="json"
+    )
+
+    # Collaborator can read the trip but cannot publish it.
+    assert friend.post(f"/api/trips/{trip_id}/share/").status_code == 403
+    assert Trip.objects.get(pk=trip_id).is_public is False
