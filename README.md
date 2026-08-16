@@ -15,6 +15,54 @@ Supabase Auth issues a JWT; Django re-verifies it on every request and maps it
 to a local user. Authorization is enforced in DRF (primary) with Postgres
 Row-Level Security guarding the tables the browser reads directly.
 
+## Backing up production before a destructive migration
+
+Take a dump **and restore it somewhere** before running anything that drops or
+rewrites data. An unverified dump is not a backup.
+
+Two things make this fiddly, both worth knowing before you need it in a hurry:
+
+* `pg_dump` must match the server major version (Supabase is on **17**); an
+  older client refuses outright.
+* `DATABASE_URL` points at the **transaction** pooler on `6543`, which
+  `pg_dump` cannot use. Swap the port to `5432` — the same host's session
+  pooler — for the dump only.
+
+```bash
+# URL with the port swapped to 5432 (session pooler)
+SESSION_URL="postgresql://USER:PASSWORD@aws-0-<region>.pooler.supabase.com:5432/postgres"
+TS=$(date -u +%Y%m%dT%H%M%SZ)
+
+# Application data
+docker run --rm -e PGURL="$SESSION_URL" -v /path/to/backups:/backup postgres:17-alpine \
+  pg_dump "$PGURL" --format=custom --no-owner --no-privileges \
+  --schema=public --file=/backup/tripbuddy-$TS.dump
+
+# Supabase Auth users — a separate schema, and NOT covered by the dump above.
+# Without it a restore leaves every Profile pointing at a user that no longer
+# exists, since Profile.supabase_user_id references auth.users.
+docker run --rm -e PGURL="$SESSION_URL" -v /path/to/backups:/backup postgres:17-alpine \
+  pg_dump "$PGURL" --format=custom --no-owner --no-privileges \
+  --schema=auth --file=/backup/tripbuddy-auth-$TS.dump
+```
+
+Verify by restoring into a throwaway container and comparing row counts:
+
+```bash
+docker run -d --name tb-restore -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=restored postgis/postgis:17-3.5
+docker cp tripbuddy-$TS.dump tb-restore:/tmp/b.dump
+docker exec tb-restore psql -U postgres -d restored -c 'CREATE EXTENSION IF NOT EXISTS postgis;'
+docker exec tb-restore pg_restore -U postgres -d restored --no-owner --no-privileges /tmp/b.dump
+```
+
+`CREATE POLICY` statements fail on a plain container because the `anon` and
+`authenticated` roles only exist on Supabase. That is expected — the policies
+*are* in the dump and restore fine onto a real Supabase target. Every other
+error is a genuine problem with the backup.
+
+Backups contain real user data. Keep them outside the repository.
+
 ## Local development
 
 Create the env files (never committed):
