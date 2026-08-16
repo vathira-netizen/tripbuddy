@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+
+import { getUnreadSummary, type UnreadSummary } from "@/lib/messages";
 
 // Routes where the app nav shouldn't show: landing + auth + onboarding.
 const HIDDEN = ["/", "/login", "/register", "/reset-password", "/update-password", "/onboarding"];
@@ -9,14 +12,60 @@ const HIDDEN = ["/", "/login", "/register", "/reset-password", "/update-password
 const LINKS = [
   { href: "/discover", label: "Discover" },
   { href: "/trips", label: "Trips" },
-  { href: "/buddies", label: "Buddies" },
+  { href: "/buddies", label: "Buddies", badge: "requests" as const },
+  { href: "/messages", label: "Messages", badge: "messages" as const },
   { href: "/profile", label: "Profile" },
 ];
 
+// The badges are a convenience, not a notification system: a poll keeps them
+// roughly current without a second Realtime subscription living in the chrome
+// of every page. Deliberately slow — the thread itself is live.
+const POLL_MS = 60_000;
+
 export function Nav() {
   const pathname = usePathname();
+  const hidden = HIDDEN.includes(pathname) || pathname.startsWith("/share/");
+
+  const [summary, setSummary] = useState<UnreadSummary | null>(null);
+
+  useEffect(() => {
+    if (hidden) return;
+
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const next = await getUnreadSummary();
+        if (!cancelled) setSummary(next);
+      } catch {
+        // A signed-out or offline user simply gets no badges.
+      }
+    };
+
+    void load();
+    const timer = setInterval(() => void load(), POLL_MS);
+
+    // Re-check when the tab regains focus, so a badge cleared elsewhere or a
+    // message received while away shows up without waiting out the interval.
+    const onFocus = () => void load();
+    window.addEventListener("focus", onFocus);
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      window.removeEventListener("focus", onFocus);
+    };
+    // pathname: navigating (e.g. opening a thread, which marks it read) should
+    // refresh the counts.
+  }, [hidden, pathname]);
+
   // Public read-only share pages have no app chrome (viewers may be logged out).
-  if (HIDDEN.includes(pathname) || pathname.startsWith("/share/")) return null;
+  if (hidden) return null;
+
+  const counts = {
+    messages: summary?.unread_messages ?? 0,
+    requests: summary?.pending_requests ?? 0,
+  };
 
   return (
     <nav className="border-b border-black/10 dark:border-white/15">
@@ -25,25 +74,41 @@ export function Nav() {
           TripBuddy
         </Link>
         <div className="flex gap-4 text-sm">
-          {LINKS.map(({ href, label }) => {
+          {LINKS.map(({ href, label, badge }) => {
             const active = pathname === href || pathname.startsWith(href + "/");
+            const count = badge ? counts[badge] : 0;
             return (
               <Link
                 key={href}
                 href={href}
                 aria-current={active ? "page" : undefined}
-                className={
+                className={`inline-flex items-center gap-1.5 ${
                   active
                     ? "font-semibold text-indigo-600"
                     : "text-black/70 hover:text-black dark:text-white/70 dark:hover:text-white"
-                }
+                }`}
               >
                 {label}
+                {count > 0 && <Badge count={count} label={label} />}
               </Link>
             );
           })}
         </div>
       </div>
     </nav>
+  );
+}
+
+function Badge({ count, label }: { count: number; label: string }) {
+  return (
+    <span
+      // aria-live so a count arriving from a poll is announced rather than
+      // silently changing under a screen-reader user.
+      aria-live="polite"
+      className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-indigo-600 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-white"
+    >
+      {count > 9 ? "9+" : count}
+      <span className="sr-only"> unread {label.toLowerCase()}</span>
+    </span>
   );
 }
