@@ -45,5 +45,8 @@ urlpatterns = [
     path('api/', include('apps.trips.urls')),
     path('api/', include('apps.budgets.urls')),
     path('api/', include('apps.matching.urls')),
+    # Before the connections router: /connections/<pk>/messages/ is served by
+    # the messaging app, not by a ConnectionViewSet action.
+    path('api/', include('apps.messaging.urls')),
     path('api/', include('apps.connections.urls')),
 ]

@@ -152,6 +152,31 @@ npm run dev                          # http://localhost:3000
   missing it looks fine and silently delivers nothing. Realtime evaluates the
   SELECT policy per subscriber, so the RLS rule above is what a subscriber gets.
 
+### Phase 7 — real-time messaging
+
+- **Write path (Django):** `GET`/`POST /api/connections/{id}/messages/`, plus
+  `POST .../messages/read/` and `GET /api/messages/summary/` for the badges.
+  Every one refuses unless the connection is `accepted` and the caller is one of
+  its two participants — and refuses *identically* whether the thread is
+  missing, someone else's, or blocked, so a refusal never confirms a block.
+- **Read path (Realtime):** the client subscribes to INSERTs on
+  `messaging_message` filtered by `connection_id`. The filter narrows what is
+  asked for; the RLS policy is what makes it safe, and Postgres applies it per
+  subscriber. `apps/messaging/test_rls.py` builds a Supabase-shaped database
+  (an `auth.uid()` shim and the browser roles), applies the real migration SQL
+  and queries *as the `authenticated` role* — so the policy's behaviour is
+  tested, not just its text.
+- **Pagination:** page 1 is the newest 30 messages, ordered oldest-to-newest
+  within the page, and `next` walks backwards into history. A chat wants the
+  tail first but rendered with the newest at the bottom.
+- **XSS:** bodies are stored exactly as typed and never HTML-escaped on the way
+  in — escaping on input would store `&lt;` forever and double-escape
+  downstream. Escaping happens at render, where React escapes any interpolated
+  string. Never pass a body to `dangerouslySetInnerHTML`. What *is* rejected on
+  input is dangerous regardless of rendering: control characters, Unicode
+  bidirectional overrides (the "Trojan Source" trick, which makes a message
+  display differently from what is stored), and anything over 2000 characters.
+
 ### TBD-5 — notification mechanism: **in-app only**
 
 In-app only for now, with email deliberately deferred rather than ruled out.
