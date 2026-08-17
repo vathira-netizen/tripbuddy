@@ -151,7 +151,7 @@ export default function AiItineraryPanel({
                 key={day.day_index}
                 className="space-y-2 rounded-lg border border-black/10 p-3 dark:border-white/10"
               >
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-black/50 dark:text-white/50">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-black/60 dark:text-white/60">
                   Day {day.day_index + 1}
                 </h3>
                 <ul className="space-y-2">
@@ -174,7 +174,7 @@ export default function AiItineraryPanel({
                             {formatINR(Number(item.est_cost))}
                           </span>
                         </div>
-                        <p className="text-xs text-black/50 dark:text-white/50">
+                        <p className="text-xs text-black/60 dark:text-white/60">
                           {item.category}
                           {item.location && ` · ${item.location}`}
                         </p>

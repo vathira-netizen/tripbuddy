@@ -160,7 +160,7 @@ export default function TripPlannerPage() {
           <h2 className="text-sm font-semibold">Collaborators</h2>
           <ul className="space-y-1 text-sm">
             {trip.collaborators.length === 0 && (
-              <li className="text-black/50 dark:text-white/50">
+              <li className="text-black/60 dark:text-white/60">
                 Just you so far.
               </li>
             )}
@@ -182,7 +182,7 @@ export default function TripPlannerPage() {
               ))}
             </div>
           ) : (
-            <p className="text-xs text-black/50 dark:text-white/50">
+            <p className="text-xs text-black/60 dark:text-white/60">
               Connect with travellers on the Buddies page to invite them here.
             </p>
           )}

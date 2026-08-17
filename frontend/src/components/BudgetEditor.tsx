@@ -95,7 +95,7 @@ export default function BudgetEditor({
       <div className="overflow-x-auto">
         <table className="w-full min-w-[28rem] text-sm">
           <thead>
-            <tr className="border-b border-black/10 text-left text-xs uppercase tracking-wide text-black/50 dark:border-white/10 dark:text-white/50">
+            <tr className="border-b border-black/10 text-left text-xs uppercase tracking-wide text-black/60 dark:border-white/10 dark:text-white/60">
               <th className="py-2 pr-2 font-medium">Category</th>
               <th className="py-2 pr-2 font-medium">Label</th>
               <th className="py-2 pr-2 text-right font-medium">Amount</th>
@@ -107,7 +107,7 @@ export default function BudgetEditor({
               <tr>
                 <td
                   colSpan={4}
-                  className="py-6 text-center text-black/50 dark:text-white/50"
+                  className="py-6 text-center text-black/60 dark:text-white/60"
                 >
                   No budget items yet — add your first one below.
                 </td>
@@ -176,7 +176,7 @@ export default function BudgetEditor({
                         <button
                           type="button"
                           onClick={() => setEditingId(null)}
-                          className="text-black/50 dark:text-white/50"
+                          className="text-black/60 dark:text-white/60"
                         >
                           Cancel
                         </button>

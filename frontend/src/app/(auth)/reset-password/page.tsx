@@ -65,7 +65,7 @@ export default function ResetPasswordPage() {
           </Button>
         </form>
       )}
-      <Link href="/login" className="block text-center text-sm text-indigo-600 hover:underline">
+      <Link href="/login" className="block text-center text-sm text-indigo-600 underline underline-offset-2">
         Back to sign in
       </Link>
     </section>

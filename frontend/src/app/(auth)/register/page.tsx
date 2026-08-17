@@ -71,7 +71,7 @@ export default function RegisterPage() {
         <FormSuccess
           message={`We sent a confirmation link to ${values.email}. Click it to activate your account, then sign in.`}
         />
-        <Link href="/login" className="block text-center text-sm text-indigo-600 hover:underline">
+        <Link href="/login" className="block text-center text-sm text-indigo-600 underline underline-offset-2">
           Back to sign in
         </Link>
       </section>
@@ -119,7 +119,7 @@ export default function RegisterPage() {
       </form>
       <p className="text-center text-sm text-black/60 dark:text-white/60">
         Already have an account?{" "}
-        <Link href="/login" className="text-indigo-600 hover:underline">
+        <Link href="/login" className="text-indigo-600 underline underline-offset-2">
           Sign in
         </Link>
       </p>

@@ -1,4 +1,4 @@
-import { forwardRef } from "react";
+import { forwardRef, useId } from "react";
 import type {
   ButtonHTMLAttributes,
   InputHTMLAttributes,
@@ -28,7 +28,11 @@ export const Input = forwardRef<
   HTMLInputElement,
   InputHTMLAttributes<HTMLInputElement> & { label: string; error?: string }
 >(function Input({ label, error, id, className = "", ...props }, ref) {
-  const inputId = id ?? props.name;
+  // Fall back to a generated id: without one, `htmlFor` and `id` are both
+  // undefined and the label is decorative — the control reaches a screen
+  // reader unnamed. Callers that pass `id` or `name` keep those.
+  const generated = useId();
+  const inputId = id ?? props.name ?? generated;
   return (
     <div className="space-y-1">
       <label htmlFor={inputId} className="block text-sm font-medium">
@@ -55,7 +59,10 @@ export const Select = forwardRef<
   HTMLSelectElement,
   SelectHTMLAttributes<HTMLSelectElement> & { label: string; error?: string }
 >(function Select({ label, error, id, className = "", children, ...props }, ref) {
-  const selectId = id ?? props.name;
+  // See Input: a Select rendered without `id` or `name` (as the discovery
+  // filters were) otherwise ends up with an unassociated label.
+  const generated = useId();
+  const selectId = id ?? props.name ?? generated;
   return (
     <div className="space-y-1">
       <label htmlFor={selectId} className="block text-sm font-medium">

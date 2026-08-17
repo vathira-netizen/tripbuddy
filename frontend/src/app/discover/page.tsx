@@ -302,7 +302,7 @@ function DiscoverInner() {
                         {d.distance_km != null && ` · ${d.distance_km} km away`}
                       </p>
                       {d.best_season && (
-                        <p className="text-xs text-black/50 dark:text-white/50">
+                        <p className="text-xs text-black/60 dark:text-white/60">
                           Best: {d.best_season}
                         </p>
                       )}

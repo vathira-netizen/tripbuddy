@@ -15,6 +15,93 @@ Supabase Auth issues a JWT; Django re-verifies it on every request and maps it
 to a local user. Authorization is enforced in DRF (primary) with Postgres
 Row-Level Security guarding the tables the browser reads directly.
 
+### How a request flows
+
+```
+browser ──JWT──> Django/DRF ──> Supabase Postgres        (everything except chat reads)
+   │
+   └──anon key + JWT──> Supabase Realtime ──> messaging_message   (chat reads only)
+                                    guarded by RLS, per subscriber
+```
+
+Two paths reach the data, and they enforce the same rules independently:
+
+* **Django** owns every write and almost every read. It connects as a
+  privileged role and therefore *bypasses* RLS, so authorization lives in
+  `apps/common/permissions.py` and `apps/common/querysets.py`.
+* **The browser** reads new chat messages straight from Postgres over Realtime.
+  Django is not involved, so Postgres itself decides: the RLS policy on
+  `messaging_message` admits only conversations on the reader's own *accepted*
+  connections. `apps/messaging/test_rls.py` tests that policy directly.
+
+Two rules the code is arranged to keep:
+
+* **Exact coordinates never leave the backend.** Profiles store a city centroid
+  rounded to ~1.1 km, and other travellers see a place name plus a coarse
+  distance bucket ("10–25 km"). The buddy serializer is a plain `Serializer`
+  with an allow-list, not a `ModelSerializer` over a model with geometry, so
+  there is no field path a coordinate could travel.
+* **Secrets stay server-side.** `SUPABASE_SERVICE_ROLE_KEY`,
+  `SUPABASE_JWT_SECRET` and `GROK_API_KEY` are backend-only; the E2E suite
+  greps the running page *and* the built client bundle to prove it.
+
+### Repository layout
+
+```
+backend/         Django project (config/) + apps/
+  apps/accounts       profiles, Supabase JWT auth, onboarding, seed_pilot
+  apps/destinations   catalogue, proximity search, saved list
+  apps/matching       buddy compatibility scoring (pure) + /api/buddies/
+  apps/connections    buddy requests: send / accept / decline / block
+  apps/messaging      chat API + the RLS policy behind Realtime
+  apps/trips          trips, itinerary, sharing, AI itinerary generation
+  apps/budgets        budget items + pure budget maths
+  apps/common         permissions, queryset scoping, shared vocabularies
+frontend/        Next.js App Router
+  src/app            routes
+  src/components     UI
+  src/lib            API client, Supabase clients, domain helpers
+  e2e                Playwright suites (see e2e/README.md)
+docs/DEPLOY.md   deployment runbook
+```
+
+## Testing
+
+| Command | What runs |
+| --- | --- |
+| `cd backend && pytest` | the backend suite (needs a PostGIS database) |
+| `cd frontend && npm run lint` | ESLint |
+| `cd frontend && npm run e2e` | Playwright: journey, accessibility, performance/security |
+
+The backend suite covers the pure logic hardest — `apps/matching/compatibility.py`
+and `apps/budgets/services.py` are both at 100% line coverage — plus
+`apps/common/test_cross_user_access.py`, which attacks every user-scoped
+endpoint from a second account, and `apps/messaging/test_rls.py`, which
+exercises the RLS policy as the `authenticated` role.
+
+The E2E suites need a running stack; see [frontend/e2e/README.md](frontend/e2e/README.md).
+They enforce a 2s budget on every read, write and PostGIS search, and scan for
+leaked secrets.
+
+## Demo data
+
+```bash
+cd backend
+python manage.py seed_destinations   # 36-destination catalogue
+python manage.py seed_pilot          # 100 fictitious profiles/connections/trips
+python manage.py seed_pilot --undo   # remove them
+```
+
+`seed_pilot` is idempotent — identity and randomness are both derived from a
+stable per-record seed, so re-running updates the same rows and a given pilot
+traveller keeps the same interests and city. It refuses to run when `DEBUG` is
+off unless `--force` is passed.
+
+## Deployment
+
+See [docs/DEPLOY.md](docs/DEPLOY.md). The ordering matters: Render first,
+then Vercel, then back to Render for CORS, then Supabase auth URLs.
+
 ## Backing up production before a destructive migration
 
 Take a dump **and restore it somewhere** before running anything that drops or

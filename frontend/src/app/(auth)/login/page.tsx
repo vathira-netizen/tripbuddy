@@ -90,7 +90,7 @@ function LoginForm() {
           required
         />
         <div className="text-right text-sm">
-          <Link href="/reset-password" className="text-indigo-600 hover:underline">
+          <Link href="/reset-password" className="text-indigo-600 underline underline-offset-2">
             Forgot password?
           </Link>
         </div>
@@ -100,7 +100,7 @@ function LoginForm() {
       </form>
       <p className="text-center text-sm text-black/60 dark:text-white/60">
         New here?{" "}
-        <Link href="/register" className="text-indigo-600 hover:underline">
+        <Link href="/register" className="text-indigo-600 underline underline-offset-2">
           Create an account
         </Link>
       </p>

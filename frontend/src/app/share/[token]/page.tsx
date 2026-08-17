@@ -63,7 +63,7 @@ export default function SharedTripPage() {
     <main className="mx-auto w-full max-w-5xl flex-1 space-y-6 px-4 py-8">
       <header className="flex flex-wrap items-end justify-between gap-4 border-b border-black/10 pb-4 dark:border-white/10">
         <div>
-          <p className="text-xs uppercase tracking-wide text-black/50 dark:text-white/50">
+          <p className="text-xs uppercase tracking-wide text-black/60 dark:text-white/60">
             Shared itinerary
           </p>
           <h1 className="text-2xl font-bold tracking-tight">{trip.title}</h1>
@@ -87,7 +87,7 @@ export default function SharedTripPage() {
             key={day}
             className="flex flex-col gap-2 rounded-xl border border-black/10 p-3 dark:border-white/10"
           >
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-black/50 dark:text-white/50">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-black/60 dark:text-white/60">
               {labels[day]}
             </h2>
             {col.length === 0 ? (
