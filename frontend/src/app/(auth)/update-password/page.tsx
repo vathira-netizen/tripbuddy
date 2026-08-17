@@ -64,7 +64,7 @@ export default function UpdatePasswordPage() {
   }
 
   return (
-    <section className="space-y-5 rounded-2xl border border-black/10 p-6 dark:border-white/15">
+    <section className="space-y-5 card p-6">
       <h1 className="text-lg font-semibold">Choose a new password</h1>
       <form onSubmit={onSubmit} className="space-y-4" noValidate>
         <FormError message={formError} />

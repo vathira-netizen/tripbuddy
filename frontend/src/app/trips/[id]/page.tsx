@@ -130,7 +130,7 @@ export default function TripPlannerPage() {
     <main className="mx-auto w-full max-w-5xl flex-1 space-y-6 px-4 py-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">{trip.title}</h1>
+          <h1 className="text-3xl font-extrabold tracking-tight">{trip.title}</h1>
           <p className="text-sm text-black/60 dark:text-white/60">
             {trip.start_date ?? "Dates TBD"}
             {trip.end_date ? ` – ${trip.end_date}` : ""} · {trip.nights} night
@@ -156,7 +156,7 @@ export default function TripPlannerPage() {
 
       <div className="grid gap-4 md:grid-cols-2">
         {/* Collaborators */}
-        <section className="space-y-3 rounded-xl border border-black/10 p-4 dark:border-white/10">
+        <section className="space-y-3 card p-4">
           <h2 className="text-sm font-semibold">Collaborators</h2>
           <ul className="space-y-1 text-sm">
             {trip.collaborators.length === 0 && (
@@ -189,7 +189,7 @@ export default function TripPlannerPage() {
         </section>
 
         {/* Sharing */}
-        <section className="space-y-3 rounded-xl border border-black/10 p-4 dark:border-white/10">
+        <section className="space-y-3 card p-4">
           <h2 className="text-sm font-semibold">Share</h2>
           {trip.is_public ? (
             <>

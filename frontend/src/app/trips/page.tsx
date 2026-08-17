@@ -65,11 +65,11 @@ export default function TripsPage() {
   }
 
   const inputClass =
-    "w-full rounded-lg border border-black/15 bg-transparent px-3 py-2 text-sm dark:border-white/20";
+    "w-full rounded-xl border border-black/10 bg-white px-3.5 py-2.5 text-sm shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/25";
 
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 space-y-8 px-4 py-6">
-      <h1 className="text-2xl font-bold tracking-tight">Your trips</h1>
+      <h1 className="text-3xl font-extrabold tracking-tight">Your trips</h1>
 
       {error && (
         <p
@@ -80,11 +80,8 @@ export default function TripsPage() {
         </p>
       )}
 
-      <form
-        onSubmit={handleCreate}
-        className="space-y-3 rounded-xl border border-black/10 p-4 dark:border-white/10"
-      >
-        <h2 className="text-sm font-semibold">Plan a new trip</h2>
+      <form onSubmit={handleCreate} className="card space-y-3 p-5">
+        <h2 className="text-base font-bold">Plan a new trip</h2>
         <div>
           <label htmlFor="title" className="mb-1 block text-xs text-black/60 dark:text-white/60">
             Title
@@ -147,7 +144,7 @@ export default function TripsPage() {
         <button
           type="submit"
           disabled={saving || !title.trim()}
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-indigo-600 to-indigo-500 px-6 py-2.5 text-sm font-bold text-white shadow-md shadow-indigo-600/25 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {saving ? "Creating…" : "Create trip"}
         </button>
@@ -161,27 +158,40 @@ export default function TripsPage() {
             No trips yet — plan your first one above.
           </p>
         ) : (
-          <ul className="space-y-2">
+          <ul className="grid gap-4 sm:grid-cols-2">
             {trips.map((trip) => (
               <li key={trip.id}>
                 <Link
                   href={`/trips/${trip.id}`}
-                  className="flex items-center justify-between gap-4 rounded-xl border border-black/10 px-4 py-3 transition hover:bg-black/5 dark:border-white/10 dark:hover:bg-white/5"
+                  className="card group block overflow-hidden transition hover:-translate-y-0.5 hover:shadow-lg"
                 >
-                  <div>
-                    <p className="font-medium">{trip.title}</p>
-                    <p className="text-xs text-black/60 dark:text-white/60">
-                      {trip.start_date ?? "Dates TBD"}
-                      {trip.end_date ? ` – ${trip.end_date}` : ""}
-                      {trip.collaborators.length > 0 &&
-                        ` · ${trip.collaborators.length} collaborator${
-                          trip.collaborators.length === 1 ? "" : "s"
-                        }`}
-                    </p>
+                  {/* Gradient banner stands in for a trip photo. */}
+                  <div className="brand-gradient relative flex h-24 items-end p-4">
+                    <span aria-hidden className="absolute right-3 top-2 text-3xl opacity-40">
+                      🏝️
+                    </span>
+                    <h3 className="text-lg font-bold text-white drop-shadow">{trip.title}</h3>
                   </div>
-                  <span aria-hidden className="text-black/40 dark:text-white/40">
-                    →
-                  </span>
+                  <div className="flex items-center justify-between gap-3 p-4">
+                    <div className="space-y-1.5">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700">
+                        📅 {trip.start_date ?? "Dates TBD"}
+                        {trip.end_date ? ` – ${trip.end_date}` : ""}
+                      </span>
+                      {trip.collaborators.length > 0 && (
+                        <p className="text-xs text-black/60">
+                          👥 {trip.collaborators.length} collaborator
+                          {trip.collaborators.length === 1 ? "" : "s"}
+                        </p>
+                      )}
+                    </div>
+                    <span
+                      aria-hidden
+                      className="grid h-8 w-8 place-items-center rounded-full bg-indigo-50 text-indigo-700 transition group-hover:bg-indigo-600 group-hover:text-white"
+                    >
+                      →
+                    </span>
+                  </div>
                 </Link>
               </li>
             ))}

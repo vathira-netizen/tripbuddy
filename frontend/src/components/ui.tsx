@@ -17,7 +17,7 @@ export function Button({
     <button
       {...props}
       disabled={props.disabled || loading}
-      className={`inline-flex w-full items-center justify-center rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:cursor-not-allowed disabled:opacity-60 ${className}`}
+      className={`inline-flex w-full items-center justify-center rounded-full bg-gradient-to-r from-indigo-600 to-indigo-500 px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-indigo-600/25 transition hover:brightness-110 hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:cursor-not-allowed disabled:opacity-60 ${className}`}
     >
       {loading ? "Please wait…" : children}
     </button>
@@ -43,7 +43,7 @@ export const Input = forwardRef<
         id={inputId}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? `${inputId}-error` : undefined}
-        className={`w-full rounded-lg border border-black/15 bg-transparent px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 dark:border-white/20 ${className}`}
+        className={`w-full rounded-xl border border-black/10 bg-white px-3.5 py-2.5 text-sm shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/25 ${className}`}
         {...props}
       />
       {error && (
@@ -73,7 +73,7 @@ export const Select = forwardRef<
         id={selectId}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? `${selectId}-error` : undefined}
-        className={`w-full rounded-lg border border-black/15 bg-transparent px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 dark:border-white/20 ${className}`}
+        className={`w-full rounded-xl border border-black/10 bg-white px-3.5 py-2.5 text-sm shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/25 ${className}`}
         {...props}
       >
         {children}
