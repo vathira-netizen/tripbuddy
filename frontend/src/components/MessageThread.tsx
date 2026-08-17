@@ -233,7 +233,7 @@ export function MessageThread({ connection }: { connection: Connection }) {
           </button>
         </div>
         {remaining < 200 && (
-          <p className="mt-1 text-right text-xs text-black/50 dark:text-white/50">
+          <p className="mt-1 text-right text-xs text-black/60 dark:text-white/60">
             {remaining} characters left
           </p>
         )}
@@ -258,7 +258,7 @@ function MessageBubble({ message }: { message: Message }) {
         <time
           dateTime={message.created_at}
           className={`mt-0.5 block text-[10px] ${
-            mine ? "text-white/70" : "text-black/45 dark:text-white/45"
+            mine ? "text-white/70" : "text-black/60 dark:text-white/60"
           }`}
         >
           {formatMessageTime(message.created_at)}

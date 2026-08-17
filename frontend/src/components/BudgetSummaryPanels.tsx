@@ -110,7 +110,7 @@ export function PerPersonPanel({
               <span
                 className={
                   settled
-                    ? "text-black/50 dark:text-white/50"
+                    ? "text-black/60 dark:text-white/60"
                     : balance > 0
                       ? "text-green-600"
                       : "text-red-600"

@@ -208,7 +208,7 @@ function DayColumn({
           : "border-black/10 dark:border-white/10"
       }`}
     >
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-black/50 dark:text-white/50">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-black/60 dark:text-white/60">
         {label}
       </h3>
 
@@ -342,7 +342,7 @@ function ItemCard({
               type="button"
               onClick={() => setEditing(true)}
               aria-label="Edit item"
-              className="text-xs text-black/50 hover:text-black dark:text-white/50 dark:hover:text-white"
+              className="text-xs text-black/60 hover:text-black dark:text-white/60 dark:hover:text-white"
             >
               Edit
             </button>

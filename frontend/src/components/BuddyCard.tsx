@@ -64,7 +64,7 @@ export function BuddyCard({
             {" · "}
             {candidate.distance_bucket}
           </p>
-          <p className="mt-0.5 text-xs text-black/50 dark:text-white/50">
+          <p className="mt-0.5 text-xs text-black/60 dark:text-white/60">
             {[
               candidate.age_band,
               BUDGET_STYLE_LABELS[candidate.budget_style] ?? null,

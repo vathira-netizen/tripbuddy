@@ -69,11 +69,14 @@ export function Nav() {
 
   return (
     <nav className="border-b border-black/10 dark:border-white/15">
-      <div className="mx-auto flex w-full max-w-6xl items-center gap-6 px-4 py-3">
+      {/* Wraps rather than overflowing: six items do not fit on a 375px
+          viewport, and a nav that pushes the page sideways is unusable on a
+          phone. */}
+      <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
         <Link href="/discover" className="font-bold tracking-tight">
           TripBuddy
         </Link>
-        <div className="flex gap-4 text-sm">
+        <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
           {LINKS.map(({ href, label, badge }) => {
             const active = pathname === href || pathname.startsWith(href + "/");
             const count = badge ? counts[badge] : 0;

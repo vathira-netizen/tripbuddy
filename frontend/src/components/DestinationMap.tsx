@@ -4,19 +4,23 @@ import { useEffect } from "react";
 import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import markerIcon from "leaflet/dist/images/marker-icon.png";
-import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
-import markerShadow from "leaflet/dist/images/marker-shadow.png";
 
 import type { Destination } from "@/lib/discover";
 import { formatINR } from "@/lib/discover";
 
-// Leaflet's default marker images don't survive bundling; point them at the
-// hashed asset URLs Next produces for the package's own PNGs.
+// Leaflet's marker images are served from public/ rather than imported from
+// node_modules.
+//
+// Importing them used to work by reading `.src` off the module, but Turbopack
+// does not put node_modules images through the static-image loader, so `.src`
+// came back undefined and Leaflet threw "iconUrl not set in Icon options" —
+// which took the whole discovery page down, not just the marker. Plain paths
+// depend on no loader behaviour at all. The files are copied from
+// leaflet/dist/images; keep them in step if Leaflet is upgraded.
 const defaultIcon = L.icon({
-  iconUrl: markerIcon.src,
-  iconRetinaUrl: markerIcon2x.src,
-  shadowUrl: markerShadow.src,
+  iconUrl: "/leaflet/marker-icon.png",
+  iconRetinaUrl: "/leaflet/marker-icon-2x.png",
+  shadowUrl: "/leaflet/marker-shadow.png",
   iconSize: [25, 41],
   iconAnchor: [12, 41],
   popupAnchor: [1, -34],
