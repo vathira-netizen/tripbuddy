@@ -115,7 +115,7 @@ export default function TripBudgetPage() {
     <main className="mx-auto w-full max-w-4xl flex-1 space-y-6 px-4 py-6">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">
+          <h1 className="text-3xl font-extrabold tracking-tight">
             {trip?.title ?? "Trip"} budget
           </h1>
           <p className="text-sm text-black/60 dark:text-white/60">
@@ -141,27 +141,27 @@ export default function TripBudgetPage() {
         </p>
       )}
 
-      <section className="rounded-xl border border-black/10 p-4 dark:border-white/10">
+      <section className="card p-4">
         <RunningTotalBar runningTotal={summary.running_total} />
       </section>
 
       <div className="grid gap-6 md:grid-cols-2">
-        <section className="rounded-xl border border-black/10 p-4 dark:border-white/10">
+        <section className="card p-4">
           <h2 className="mb-3 text-sm font-semibold">Category breakdown</h2>
           <CategoryBreakdownChart data={categoryData} />
         </section>
-        <section className="rounded-xl border border-black/10 p-4 dark:border-white/10">
+        <section className="card p-4">
           <h2 className="mb-3 text-sm font-semibold">Per day</h2>
           <PerDayPanel perDay={summary.per_day} />
         </section>
       </div>
 
-      <section className="rounded-xl border border-black/10 p-4 dark:border-white/10">
+      <section className="card p-4">
         <h2 className="mb-3 text-sm font-semibold">Per person</h2>
         <PerPersonPanel perPerson={summary.per_person} />
       </section>
 
-      <section className="rounded-xl border border-black/10 p-4 dark:border-white/10">
+      <section className="card p-4">
         <h2 className="mb-3 text-sm font-semibold">Budget items</h2>
         <BudgetEditor tripId={tripId} items={items} onItemsChange={handleItemsChange} />
       </section>

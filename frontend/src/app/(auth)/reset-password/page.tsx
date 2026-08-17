@@ -40,7 +40,7 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <section className="space-y-5 rounded-2xl border border-black/10 p-6 dark:border-white/15">
+    <section className="space-y-5 card p-6">
       <h1 className="text-lg font-semibold">Reset your password</h1>
       {sent ? (
         <FormSuccess message="If an account exists for that email, a password-reset link is on its way." />
