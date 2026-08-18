@@ -180,13 +180,13 @@ export function MessageThread({ connection }: { connection: Connection }) {
 
       <div className="flex-1 space-y-2 overflow-y-auto bg-black/[0.025] px-4 py-3">
         {loading && (
-          <p aria-busy="true" className="text-sm text-black/55 dark:text-white/55">
+          <p aria-busy="true" className="text-sm text-black/60 dark:text-white/60">
             Loading messages…
           </p>
         )}
 
         {!loading && messages.length === 0 && (
-          <p className="py-8 text-center text-sm text-black/55 dark:text-white/55">
+          <p className="py-8 text-center text-sm text-black/60 dark:text-white/60">
             No messages yet. Say hello.
           </p>
         )}

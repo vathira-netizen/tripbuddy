@@ -82,8 +82,21 @@ async function ensureConfirmedAccount(email: string): Promise<{ id: string; viaF
     headers: ADMIN_HEADERS,
     body: JSON.stringify({ email, password: PASSWORD, email_confirm: true }),
   });
-  const created = (await res.json()) as { id?: string; msg?: string };
-  if (!created.id) throw new Error(`could not provision an account: ${created.msg}`);
+  const raw = await res.text();
+  let created: { id?: string; msg?: string } = {};
+  try {
+    created = JSON.parse(raw) as { id?: string; msg?: string };
+  } catch {
+    /* fall through to the error below, which reports the raw body */
+  }
+  if (!created.id) {
+    // Report the status and body: Supabase signals rate limits and duplicate
+    // addresses in different fields, so reading only `msg` yields "undefined"
+    // and hides which of them happened.
+    throw new Error(
+      `could not provision an account (HTTP ${res.status}): ${raw.slice(0, 300)}`,
+    );
+  }
   return { id: created.id, viaForm: false };
 }
 

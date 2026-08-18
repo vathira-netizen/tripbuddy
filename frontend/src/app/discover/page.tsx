@@ -299,7 +299,7 @@ function DiscoverInner() {
                           <h2 className="text-lg font-bold drop-shadow">{d.name}</h2>
                           <span className="whitespace-nowrap rounded-lg bg-white/95 px-2 py-1 text-xs font-bold text-indigo-700 shadow">
                             {formatINR(d.avg_daily_budget)}
-                            <span className="font-medium text-black/50">/day</span>
+                            <span className="font-medium text-black/60">/day</span>
                           </span>
                         </div>
                       </div>

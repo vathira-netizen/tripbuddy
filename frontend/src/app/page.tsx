@@ -40,7 +40,7 @@ export default async function Home() {
             className="card grid grid-cols-1 gap-3 p-4 text-left text-foreground sm:grid-cols-[1.4fr_1fr_1fr_auto] sm:items-end"
           >
             <label className="block">
-              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-black/50">
+              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-black/60">
                 Where to?
               </span>
               <input
@@ -50,7 +50,7 @@ export default async function Home() {
               />
             </label>
             <label className="block">
-              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-black/50">
+              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-black/60">
                 Max budget
               </span>
               <select className="w-full rounded-xl border border-black/10 bg-white px-3.5 py-2.5 text-sm shadow-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/25">
@@ -61,7 +61,7 @@ export default async function Home() {
               </select>
             </label>
             <label className="block">
-              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-black/50">
+              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-black/60">
                 Travellers
               </span>
               <select className="w-full rounded-xl border border-black/10 bg-white px-3.5 py-2.5 text-sm shadow-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/25">
