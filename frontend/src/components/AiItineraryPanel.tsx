@@ -69,7 +69,7 @@ export default function AiItineraryPanel({
     target && target > 0 ? Math.min((total / target) * 100, 100) : total > 0 ? 100 : 0;
 
   return (
-    <section className="space-y-3 rounded-xl border border-black/10 p-4 dark:border-white/10">
+    <section className="space-y-3 card p-4">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold">Generate with AI</h2>
         <span className="text-xs text-black/40 dark:text-white/40">Draft — review before adding</span>

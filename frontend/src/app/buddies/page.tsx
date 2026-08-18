@@ -106,9 +106,9 @@ function BuddiesInner() {
   );
 
   return (
-    <main className="mx-auto w-full max-w-6xl flex-1 p-6">
+    <main className="mx-auto w-full max-w-7xl flex-1 p-6">
       <header className="mb-6">
-        <h1 className="text-2xl font-bold">Find travel buddies</h1>
+        <h1 className="text-3xl font-extrabold tracking-tight">Find travel buddies</h1>
         <p className="mt-1 text-sm text-black/60 dark:text-white/60">
           Ranked by how well your interests, budget, languages, age and saved
           destinations line up — and how close you are. Locations are always
@@ -120,7 +120,7 @@ function BuddiesInner() {
         <div className="order-2 lg:order-1">
           <section
             aria-label="Filters"
-            className="mb-5 grid gap-3 rounded-xl border border-black/10 p-4 sm:grid-cols-2 lg:grid-cols-4 dark:border-white/15"
+            className="card mb-5 grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4"
           >
             <Select
               label="Within"
@@ -215,7 +215,7 @@ function BuddiesInner() {
                 {candidates.length} traveller{candidates.length === 1 ? "" : "s"}{" "}
                 within {radiusKm} km
               </p>
-              <ul className="grid gap-4 sm:grid-cols-2">
+              <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {candidates.map((candidate) => (
                   <li key={candidate.supabase_user_id} className="flex">
                     <div className="flex w-full flex-col">

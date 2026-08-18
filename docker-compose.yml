@@ -1,0 +1,19 @@
+# Local full-stack run: Django backend + Next.js frontend, both talking to the
+# external Supabase Postgres/Auth/Realtime via the committed-adjacent .env files.
+# Browser hits localhost:8000 (API) and localhost:3000 (app) directly.
+services:
+  backend:
+    build:
+      context: ./backend
+    env_file: ./backend/.env
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+    env_file: ./frontend/.env.local
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend

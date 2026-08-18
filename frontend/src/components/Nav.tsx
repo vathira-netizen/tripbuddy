@@ -68,15 +68,19 @@ export function Nav() {
   };
 
   return (
-    <nav className="border-b border-black/10 dark:border-white/15">
+    <nav className="brand-gradient sticky top-0 z-40 shadow-md">
       {/* Wraps rather than overflowing: six items do not fit on a 375px
           viewport, and a nav that pushes the page sideways is unusable on a
           phone. */}
       <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
-        <Link href="/discover" className="font-bold tracking-tight">
-          TripBuddy
+        <Link
+          href="/discover"
+          className="flex items-center gap-2 text-lg font-extrabold tracking-tight text-white"
+        >
+          <span aria-hidden className="text-xl">✈️</span>
+          Trip<span className="text-brand-amber">Buddy</span>
         </Link>
-        <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
+        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-2 text-sm">
           {LINKS.map(({ href, label, badge }) => {
             const active = pathname === href || pathname.startsWith(href + "/");
             const count = badge ? counts[badge] : 0;
@@ -85,10 +89,10 @@ export function Nav() {
                 key={href}
                 href={href}
                 aria-current={active ? "page" : undefined}
-                className={`inline-flex items-center gap-1.5 ${
+                className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 font-medium transition ${
                   active
-                    ? "font-semibold text-indigo-600"
-                    : "text-black/70 hover:text-black dark:text-white/70 dark:hover:text-white"
+                    ? "bg-white text-indigo-700 shadow-sm"
+                    : "text-white/85 hover:bg-white/15 hover:text-white"
                 }`}
               >
                 {label}

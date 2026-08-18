@@ -147,43 +147,46 @@ export function MessageThread({ connection }: { connection: Connection }) {
   const remaining = MAX_BODY_LENGTH - draft.trim().length;
 
   return (
-    <section className="flex h-[70vh] flex-col rounded-xl border border-black/10 dark:border-white/15">
-      <header className="flex items-center gap-3 border-b border-black/10 px-4 py-3 dark:border-white/15">
+    <section className="card flex h-[70vh] flex-col overflow-hidden">
+      <header className="brand-gradient flex items-center gap-3 px-4 py-3 text-white">
         <span
           aria-hidden="true"
-          className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold ${avatarTint(
+          className={`flex h-10 w-10 items-center justify-center rounded-full text-xs font-bold shadow ring-2 ring-white/70 ${avatarTint(
             other?.supabase_user_id ?? String(connection.id),
           )}`}
         >
           {initials(other?.display_name ?? "?")}
         </span>
         <div className="min-w-0">
-          <h2 className="truncate font-semibold">
+          <h2 className="truncate font-bold">
             {other?.display_name ?? "Traveller"}
           </h2>
-          <p className="truncate text-xs text-black/55 dark:text-white/55">
+          <p className="truncate text-xs text-white/75">
             {other?.area_label || "Area not set"}
           </p>
         </div>
         <span
           title={live ? "Receiving messages live" : "Reconnecting…"}
-          className={`ml-auto h-2 w-2 shrink-0 rounded-full ${
-            live ? "bg-emerald-500" : "bg-black/25 dark:bg-white/30"
-          }`}
+          className={`ml-auto flex items-center gap-1.5 text-xs text-white/80`}
         >
-          <span className="sr-only">{live ? "Live" : "Not live"}</span>
+          <span
+            className={`h-2 w-2 shrink-0 rounded-full ${
+              live ? "bg-emerald-400" : "bg-white/40"
+            }`}
+          />
+          {live ? "Live" : "Offline"}
         </span>
       </header>
 
-      <div className="flex-1 space-y-2 overflow-y-auto px-4 py-3">
+      <div className="flex-1 space-y-2 overflow-y-auto bg-black/[0.025] px-4 py-3">
         {loading && (
-          <p aria-busy="true" className="text-sm text-black/55 dark:text-white/55">
+          <p aria-busy="true" className="text-sm text-black/60 dark:text-white/60">
             Loading messages…
           </p>
         )}
 
         {!loading && messages.length === 0 && (
-          <p className="py-8 text-center text-sm text-black/55 dark:text-white/55">
+          <p className="py-8 text-center text-sm text-black/60 dark:text-white/60">
             No messages yet. Say hello.
           </p>
         )}
@@ -197,7 +200,7 @@ export function MessageThread({ connection }: { connection: Connection }) {
 
       <form
         onSubmit={send}
-        className="border-t border-black/10 px-4 py-3 dark:border-white/15"
+        className="border-t border-black/10 bg-white px-4 py-3"
       >
         {error && (
           <p role="alert" className="mb-2 text-xs text-red-600 dark:text-red-400">
@@ -222,12 +225,12 @@ export function MessageThread({ connection }: { connection: Connection }) {
               }
             }}
             placeholder="Write a message…"
-            className="flex-1 resize-none rounded-lg border border-black/15 bg-transparent px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 dark:border-white/20"
+            className="flex-1 resize-none rounded-xl border border-black/10 bg-white px-3.5 py-2.5 text-sm shadow-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/25"
           />
           <button
             type="submit"
             disabled={sending || draft.trim().length === 0}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-full bg-gradient-to-r from-indigo-600 to-indigo-500 px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-indigo-600/25 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {sending ? "Sending…" : "Send"}
           </button>
@@ -247,10 +250,10 @@ function MessageBubble({ message }: { message: Message }) {
   return (
     <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
       <div
-        className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm ${
+        className={`max-w-[75%] px-3.5 py-2 text-sm shadow-sm ${
           mine
-            ? "bg-indigo-600 text-white"
-            : "bg-black/5 text-black dark:bg-white/10 dark:text-white"
+            ? "rounded-2xl rounded-br-md bg-gradient-to-r from-indigo-600 to-indigo-500 text-white"
+            : "rounded-2xl rounded-bl-md bg-white text-black"
         }`}
       >
         {/* Rendered as a text child: React escapes it. Never dangerouslySetInnerHTML. */}

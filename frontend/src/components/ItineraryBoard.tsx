@@ -202,13 +202,16 @@ function DayColumn({
   return (
     <section
       ref={setNodeRef}
-      className={`flex flex-col gap-2 rounded-xl border p-3 transition ${
+      className={`flex flex-col gap-2 rounded-2xl border p-3 transition ${
         isOver
-          ? "border-indigo-400 bg-indigo-50/50 dark:bg-indigo-950/20"
-          : "border-black/10 dark:border-white/10"
+          ? "border-indigo-400 bg-indigo-50 ring-2 ring-indigo-400/40"
+          : "border-black/5 bg-black/[0.025]"
       }`}
     >
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-black/60 dark:text-white/60">
+      <h3 className="flex items-center gap-2 text-sm font-bold text-indigo-900">
+        <span className="grid h-6 w-6 place-items-center rounded-full brand-gradient text-xs font-bold text-white">
+          {day + 1}
+        </span>
         {label}
       </h3>
 
@@ -228,18 +231,18 @@ function DayColumn({
         </ul>
       </SortableContext>
 
-      <form onSubmit={submitNew} className="mt-1 flex gap-1">
+      <form onSubmit={submitNew} className="mt-1 flex gap-1.5">
         <input
           value={newTitle}
           onChange={(e) => setNewTitle(e.target.value)}
           placeholder="Add an item…"
           aria-label={`Add an item to ${label}`}
-          className="w-full rounded-md border border-black/15 bg-transparent px-2 py-1 text-sm dark:border-white/20"
+          className="w-full rounded-lg border border-black/10 bg-white px-2.5 py-1.5 text-sm shadow-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/25"
         />
         <button
           type="submit"
           disabled={!newTitle.trim()}
-          className="rounded-md border border-black/15 px-2 text-sm disabled:opacity-40 dark:border-white/20"
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-r from-indigo-600 to-indigo-500 text-lg font-bold text-white shadow-sm transition hover:brightness-110 disabled:opacity-40"
           aria-label="Add"
         >
           +
@@ -280,7 +283,7 @@ function ItemCard({
     <li
       ref={setNodeRef}
       style={style}
-      className="rounded-lg border border-black/10 bg-white p-2 text-sm shadow-sm dark:border-white/10 dark:bg-white/5"
+      className="rounded-xl border-l-4 border-l-indigo-500 bg-white p-2.5 text-sm shadow-sm transition hover:shadow-md"
     >
       {editing ? (
         <form onSubmit={save} className="space-y-2">

@@ -1,8 +1,27 @@
 @import "tailwindcss";
 
+/*
+ * The brand is light-only. Redefine Tailwind's `dark:` variant to a class that
+ * never appears, so the many `dark:*` utilities across the app stay INERT
+ * instead of firing off the OS `prefers-color-scheme: dark` — which otherwise
+ * turns text white on our light background (invisible).
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * TripBuddy design system — MakeMyTrip-inspired.
+ * Bright blue primary, saffron CTA accent, light-gray canvas, white rounded
+ * cards with soft shadows. Committed to a light theme (the brand is light).
+ *
+ * The whole app accents off Tailwind's `indigo-*` utilities, so we remap the
+ * indigo scale to the brand blue here — every existing page is rebranded
+ * without touching its markup.
+ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f2f4f8;
+  --foreground: #1a1a1a;
+  color-scheme: light;
 }
 
 @theme inline {
@@ -10,17 +29,46 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* Brand blue, mapped onto the indigo scale used across the app. */
+  --color-indigo-50: #eaf4ff;
+  --color-indigo-100: #d3e8ff;
+  --color-indigo-200: #a9d1ff;
+  --color-indigo-300: #6fb2ff;
+  --color-indigo-400: #3d97ff;
+  --color-indigo-500: #1a83ff;
+  --color-indigo-600: #0770e3;
+  --color-indigo-700: #0a5cba;
+  --color-indigo-800: #0d4a92;
+  --color-indigo-900: #0f3d75;
+
+  /* Saffron / coral CTA accent (MMT's warm highlight). */
+  --color-brand-saffron: #ff664b;
+  --color-brand-amber: #ffb700;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, Arial, Helvetica, sans-serif;
+}
+
+@layer components {
+  /* Deep blue gradient used by the header and hero banner. */
+  .brand-gradient {
+    background-image: linear-gradient(105deg, #0b1f5c 0%, #0a5cba 55%, #008cff 100%);
+  }
+
+  /* Saffron→coral gradient for primary CTAs. */
+  .cta-gradient {
+    background-image: linear-gradient(92deg, #ff764b 0%, #ff3e6c 100%);
+  }
+
+  /* White card on the gray canvas. */
+  .card {
+    background: #ffffff;
+    border-radius: 1rem;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06),
+      0 8px 24px -12px rgba(16, 24, 40, 0.18);
+  }
 }

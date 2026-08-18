@@ -66,7 +66,7 @@ export default function RegisterPage() {
 
   if (needsConfirmation) {
     return (
-      <section className="space-y-4 rounded-2xl border border-black/10 p-6 dark:border-white/15">
+      <section className="space-y-4 card p-6">
         <h1 className="text-lg font-semibold">Check your email</h1>
         <FormSuccess
           message={`We sent a confirmation link to ${values.email}. Click it to activate your account, then sign in.`}
@@ -79,7 +79,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <section className="space-y-5 rounded-2xl border border-black/10 p-6 dark:border-white/15">
+    <section className="space-y-5 card p-6">
       <h1 className="text-lg font-semibold">Create your account</h1>
       <form onSubmit={onSubmit} className="space-y-4" noValidate>
         <FormError message={formError} />

@@ -68,7 +68,7 @@ export function IncomingRequests({ onAnswered }: { onAnswered?: () => void }) {
 
   if (loading) {
     return (
-      <section aria-busy="true" className="rounded-xl border border-black/10 p-4 dark:border-white/15">
+      <section aria-busy="true" className="card p-4">
         <h2 className="font-semibold">Requests</h2>
         <p className="mt-2 text-sm text-black/60 dark:text-white/60">Loading…</p>
       </section>
@@ -77,7 +77,7 @@ export function IncomingRequests({ onAnswered }: { onAnswered?: () => void }) {
 
   if (requests.length === 0) {
     return (
-      <section className="rounded-xl border border-black/10 p-4 dark:border-white/15">
+      <section className="card p-4">
         <h2 className="font-semibold">Requests</h2>
         <p className="mt-2 text-sm text-black/60 dark:text-white/60">
           No pending requests.
@@ -87,7 +87,7 @@ export function IncomingRequests({ onAnswered }: { onAnswered?: () => void }) {
   }
 
   return (
-    <section className="rounded-xl border border-black/10 p-4 dark:border-white/15">
+    <section className="card p-4">
       <h2 className="font-semibold">
         Requests{" "}
         <span className="ml-1 rounded-full bg-indigo-600 px-2 py-0.5 text-xs font-semibold text-white">

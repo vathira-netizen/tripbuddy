@@ -18,7 +18,7 @@ export default function LoginPage() {
 
 function LoginFallback() {
   return (
-    <section className="space-y-5 rounded-2xl border border-black/10 p-6 dark:border-white/15">
+    <section className="space-y-5 card p-6">
       <h1 className="text-lg font-semibold">Sign in</h1>
       <p className="text-sm text-black/60 dark:text-white/60">Loading…</p>
     </section>
@@ -65,7 +65,7 @@ function LoginForm() {
   }
 
   return (
-    <section className="space-y-5 rounded-2xl border border-black/10 p-6 dark:border-white/15">
+    <section className="space-y-5 card p-6">
       <h1 className="text-lg font-semibold">Sign in</h1>
       <form onSubmit={onSubmit} className="space-y-4" noValidate>
         <FormError message={formError} />

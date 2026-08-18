@@ -66,7 +66,7 @@ export default function SharedTripPage() {
           <p className="text-xs uppercase tracking-wide text-black/60 dark:text-white/60">
             Shared itinerary
           </p>
-          <h1 className="text-2xl font-bold tracking-tight">{trip.title}</h1>
+          <h1 className="text-3xl font-extrabold tracking-tight">{trip.title}</h1>
           <p className="text-sm text-black/60 dark:text-white/60">
             {trip.owner_name && `by ${trip.owner_name} · `}
             {trip.start_date ?? "Dates TBD"}

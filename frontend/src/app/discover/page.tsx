@@ -147,7 +147,7 @@ function DiscoverInner() {
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">Discover</h1>
+        <h1 className="text-3xl font-extrabold tracking-tight">Discover</h1>
         <Link href="/discover/saved" className="text-sm font-medium text-indigo-600">
           Saved ♥
         </Link>
@@ -155,7 +155,7 @@ function DiscoverInner() {
 
       <div className="grid gap-6 lg:grid-cols-[18rem_1fr]">
         {/* Filter panel */}
-        <aside className="space-y-5">
+        <aside className="card h-fit space-y-5 p-5">
           <fieldset className="space-y-2">
             <legend className="text-sm font-medium">Daily budget (₹)</legend>
             <label className="flex items-center justify-between text-sm">
@@ -270,67 +270,69 @@ function DiscoverInner() {
               return (
                 <li
                   key={d.id}
-                  className={`overflow-hidden rounded-xl border transition ${
-                    isSelected
-                      ? "border-indigo-500 ring-2 ring-indigo-500/30"
-                      : "border-black/10 dark:border-white/10"
+                  className={`card group overflow-hidden transition hover:-translate-y-0.5 hover:shadow-lg ${
+                    isSelected ? "ring-2 ring-indigo-500" : ""
                   }`}
                 >
-                  <button
-                    type="button"
-                    onClick={() => setSelected(d)}
-                    className="block w-full text-left"
-                    aria-label={`Focus ${d.name} on the map`}
-                  >
-                    <Image
-                      src={d.image_url}
-                      alt={d.name}
-                      width={600}
-                      height={400}
-                      unoptimized
-                      className="h-36 w-full object-cover"
-                    />
-                    <div className="space-y-2 p-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <h2 className="font-semibold">{d.name}</h2>
-                        <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setSelected(d)}
+                      className="block w-full text-left"
+                      aria-label={`Focus ${d.name} on the map`}
+                    >
+                      <div className="relative h-44 w-full overflow-hidden">
+                        <Image
+                          src={d.image_url}
+                          alt={d.name}
+                          width={600}
+                          height={400}
+                          unoptimized
+                          className="h-44 w-full object-cover transition duration-300 group-hover:scale-105"
+                        />
+                        {/* Gradient scrim so the title reads over any photo. */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+                        <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 shadow-sm backdrop-blur">
                           {TIER_LABELS[d.budget_tier]}
                         </span>
-                      </div>
-                      <p className="text-sm text-black/70 dark:text-white/70">
-                        {formatINR(d.avg_daily_budget)}/day
-                        {d.distance_km != null && ` · ${d.distance_km} km away`}
-                      </p>
-                      {d.best_season && (
-                        <p className="text-xs text-black/60 dark:text-white/60">
-                          Best: {d.best_season}
-                        </p>
-                      )}
-                      <div className="flex flex-wrap gap-1">
-                        {d.interest_tags.map((t) => (
-                          <span
-                            key={t}
-                            className="rounded-full bg-black/5 px-2 py-0.5 text-xs capitalize dark:bg-white/10"
-                          >
-                            {t}
+                        <div className="absolute inset-x-3 bottom-2.5 flex items-end justify-between gap-2 text-white">
+                          <h2 className="text-lg font-bold drop-shadow">{d.name}</h2>
+                          <span className="whitespace-nowrap rounded-lg bg-white/95 px-2 py-1 text-xs font-bold text-indigo-700 shadow">
+                            {formatINR(d.avg_daily_budget)}
+                            <span className="font-medium text-black/60">/day</span>
                           </span>
-                        ))}
+                        </div>
                       </div>
-                    </div>
-                  </button>
-                  <div className="border-t border-black/10 p-2 dark:border-white/10">
+                    </button>
+                    {/* Heart save, floating over the photo (MMT-style). */}
                     <button
                       type="button"
                       onClick={() => toggleSave(d)}
                       aria-pressed={isSaved}
-                      className={`w-full rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-                        isSaved
-                          ? "bg-indigo-600 text-white hover:bg-indigo-500"
-                          : "border border-black/15 hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
-                      }`}
+                      aria-label={isSaved ? `Unsave ${d.name}` : `Save ${d.name}`}
+                      className="absolute right-3 top-3 grid h-9 w-9 place-items-center rounded-full bg-white/90 text-lg shadow-sm backdrop-blur transition hover:scale-110"
                     >
-                      {isSaved ? "Saved ♥" : "Save"}
+                      <span className={isSaved ? "text-brand-saffron" : "text-black/40"}>
+                        {isSaved ? "♥" : "♡"}
+                      </span>
                     </button>
+                  </div>
+                  <div className="space-y-2 p-3">
+                    <p className="text-sm text-black/60">
+                      {d.distance_km != null && `${d.distance_km} km away`}
+                      {d.distance_km != null && d.best_season && " · "}
+                      {d.best_season && `Best: ${d.best_season}`}
+                    </p>
+                    <div className="flex flex-wrap gap-1">
+                      {d.interest_tags.map((t) => (
+                        <span
+                          key={t}
+                          className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs capitalize text-indigo-700"
+                        >
+                          {t}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 </li>
               );
