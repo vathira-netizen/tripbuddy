@@ -31,6 +31,14 @@ DEBUG = env.bool("DEBUG", default=False)
 
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
 
+# Render injects the service's public hostname here. Append it automatically so
+# ALLOWED_HOSTS is correct without hand-typing the .onrender.com host: a blank or
+# mismatched value returns 400 to Render's health-check probe, which surfaces as
+# "Timed Out" on every deploy while the container is actually healthy.
+_render_host = env("RENDER_EXTERNAL_HOSTNAME", default="")
+if _render_host and _render_host not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(_render_host)
+
 
 # Application definition
 
