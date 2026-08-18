@@ -102,7 +102,7 @@ export function BuddyCard({
       )}
 
       {candidate.interests.length > 0 && (
-        <p className="text-xs capitalize text-black/55 dark:text-white/55">
+        <p className="text-xs capitalize text-black/60 dark:text-white/60">
           {candidate.interests.slice(0, 5).join(" · ")}
         </p>
       )}

@@ -133,7 +133,7 @@ function MessagesInner() {
                         <span className="block truncate text-sm font-medium">
                           {conversation.other?.display_name ?? "Traveller"}
                         </span>
-                        <span className="block truncate text-xs text-black/55 dark:text-white/55">
+                        <span className="block truncate text-xs text-black/60 dark:text-white/60">
                           {conversation.other?.area_label || "Area not set"}
                         </span>
                       </span>
