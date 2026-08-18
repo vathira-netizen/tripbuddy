@@ -31,6 +31,12 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <Nav />
         {children}
+        <footer className="mt-auto brand-gradient text-white/80">
+          <div className="mx-auto flex w-full max-w-6xl flex-col gap-1 px-4 py-6 text-sm sm:flex-row sm:items-center sm:justify-between">
+            <span className="font-bold text-white">Trip<span className="text-brand-amber">Buddy</span></span>
+            <span>Budget-first travel planning · plan · match · explore together</span>
+          </div>
+        </footer>
       </body>
     </html>
   );

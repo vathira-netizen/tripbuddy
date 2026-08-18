@@ -47,35 +47,43 @@ export function BuddyCard({
   };
 
   return (
-    <article className="flex flex-col gap-4 rounded-xl border border-black/10 p-4 dark:border-white/15">
-      <header className="flex items-start gap-3">
-        <span
-          aria-hidden="true"
-          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${avatarTint(
-            candidate.supabase_user_id,
-          )}`}
-        >
-          {initials(candidate.display_name)}
+    <article className="card group flex flex-col overflow-hidden">
+      {/* Gradient banner with a floating match badge (MMT-style). */}
+      <div className="brand-gradient relative h-16">
+        <span className="absolute right-3 top-3 rounded-full bg-white/95 px-2.5 py-1 text-xs font-bold text-indigo-700 shadow-sm">
+          {candidate.score}% match
         </span>
-        <div className="min-w-0 flex-1">
-          <h3 className="truncate font-semibold">{candidate.display_name}</h3>
-          <p className="truncate text-sm text-black/60 dark:text-white/60">
-            {candidate.area_label || "Area not set"}
-            {" · "}
-            {candidate.distance_bucket}
-          </p>
-          <p className="mt-0.5 text-xs text-black/60 dark:text-white/60">
-            {[
-              candidate.age_band,
-              BUDGET_STYLE_LABELS[candidate.budget_style] ?? null,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          </p>
-        </div>
-      </header>
+      </div>
 
-      <ScoreBar score={candidate.score} name={candidate.display_name} />
+      <div className="-mt-8 flex flex-1 flex-col gap-4 px-4 pb-4">
+        <header className="flex items-end gap-3">
+          <span
+            aria-hidden="true"
+            className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full text-lg font-bold shadow-md ring-4 ring-white ${avatarTint(
+              candidate.supabase_user_id,
+            )}`}
+          >
+            {initials(candidate.display_name)}
+          </span>
+          <div className="min-w-0 flex-1 pb-1">
+            <h3 className="truncate text-base font-bold">{candidate.display_name}</h3>
+            <p className="truncate text-sm text-black/60 dark:text-white/60">
+              📍 {candidate.area_label || "Area not set"}
+              {" · "}
+              {candidate.distance_bucket}
+            </p>
+            <p className="mt-0.5 text-xs text-black/60 dark:text-white/60">
+              {[
+                candidate.age_band,
+                BUDGET_STYLE_LABELS[candidate.budget_style] ?? null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+          </div>
+        </header>
+
+        <ScoreBar score={candidate.score} name={candidate.display_name} />
 
       {candidate.explanation.length > 0 && (
         <ul className="flex flex-wrap gap-1.5">
@@ -94,7 +102,7 @@ export function BuddyCard({
       )}
 
       {candidate.interests.length > 0 && (
-        <p className="text-xs capitalize text-black/55 dark:text-white/55">
+        <p className="text-xs capitalize text-black/60 dark:text-white/60">
           {candidate.interests.slice(0, 5).join(" · ")}
         </p>
       )}
@@ -109,14 +117,15 @@ export function BuddyCard({
           type="button"
           onClick={connect}
           disabled={state !== "idle"}
-          className="inline-flex w-full items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex w-full items-center justify-center rounded-full bg-gradient-to-r from-indigo-600 to-indigo-500 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-indigo-600/25 transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {state === "sent"
-            ? "Request sent"
+            ? "✓ Request sent"
             : state === "sending"
               ? "Sending…"
               : "Connect"}
         </button>
+      </div>
       </div>
     </article>
   );
@@ -144,7 +153,7 @@ function ScoreBar({ score, name }: { score: number; name: string }) {
         className="h-2 w-full overflow-hidden rounded-full bg-black/10 dark:bg-white/15"
       >
         <div
-          className="h-full rounded-full bg-indigo-600 transition-[width] dark:bg-indigo-400"
+          className="h-full rounded-full bg-gradient-to-r from-indigo-600 to-indigo-400 transition-[width]"
           style={{ width: `${Math.max(0, Math.min(100, score))}%` }}
         />
       </div>
