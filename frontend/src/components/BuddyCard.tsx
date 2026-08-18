@@ -55,7 +55,7 @@ export function BuddyCard({
         </span>
       </div>
 
-      <div className="-mt-8 flex flex-1 flex-col gap-4 px-4 pb-4">
+      <div className="relative -mt-8 flex flex-1 flex-col gap-4 px-4 pb-4">
         <header className="flex items-end gap-3">
           <span
             aria-hidden="true"
