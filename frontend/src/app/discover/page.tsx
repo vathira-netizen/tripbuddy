@@ -24,11 +24,29 @@ import { Select, TagPicker } from "@/components/ui";
 // Leaflet touches window on import, so the map is client-only.
 const DestinationMap = dynamic(() => import("@/components/DestinationMap"), {
   ssr: false,
-  loading: () => <div className="h-full w-full animate-pulse bg-black/5 dark:bg-white/5" />,
+  loading: () => <div className="h-full w-full animate-pulse bg-black/5" />,
 });
 
 const BUDGET_MIN = 500;
 const BUDGET_MAX = 5000;
+
+/** Lucide `heart`, inlined — two glyphs do not justify a dependency. */
+export function Heart({ filled, className = "" }: { filled: boolean; className?: string }) {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 24 24"
+      className={className}
+      fill={filled ? "currentColor" : "none"}
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+    </svg>
+  );
+}
 
 function DiscoverInner() {
   const router = useRouter();
@@ -145,23 +163,38 @@ function DiscoverInner() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-3xl font-extrabold tracking-tight">Discover</h1>
-        <Link href="/discover/saved" className="text-sm font-medium text-indigo-600">
-          Saved ♥
+    <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-7">
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-4xl leading-none tracking-tight">Discover</h1>
+          <p className="mt-1.5 text-sm text-text-subtle">
+            {loading
+              ? "Loading destinations…"
+              : `${destinations.length} destination${
+                  destinations.length === 1 ? "" : "s"
+                } within your budget`}
+          </p>
+        </div>
+        <Link
+          href="/discover/saved"
+          className="inline-flex items-center gap-1.5 text-sm font-bold text-brand-coral-ink"
+        >
+          <Heart filled className="h-4 w-4" />
+          Saved
         </Link>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[18rem_1fr]">
-        {/* Filter panel */}
-        <aside className="card h-fit space-y-5 p-5">
-          <fieldset className="space-y-2">
-            <legend className="text-sm font-medium">Daily budget (₹)</legend>
-            <label className="flex items-center justify-between text-sm">
-              <span>Min</span>
-              <span className="tabular-nums">{formatINR(minBudget)}</span>
-            </label>
+      {/* Filter bar — one surface card across the top (ref 6a). */}
+      <div className="mb-5 rounded-[18px] border border-line bg-surface p-4">
+        <div className="flex flex-wrap items-start gap-x-6 gap-y-4">
+          <fieldset className="min-w-[190px]">
+            <legend className="text-xs text-text-subtle">Budget</legend>
+            <p className="text-sm text-text-muted">
+              <span className="font-bold tabular-nums text-brand-teal">
+                {formatINR(minBudget)}–{formatINR(maxBudget)}
+              </span>
+              /day
+            </p>
             <input
               type="range"
               min={BUDGET_MIN}
@@ -172,12 +205,8 @@ function DiscoverInner() {
               onChange={(e) =>
                 setParam({ min: String(Math.min(Number(e.target.value), maxBudget)) })
               }
-              className="w-full"
+              className="mt-1.5 w-full accent-brand-teal"
             />
-            <label className="flex items-center justify-between text-sm">
-              <span>Max</span>
-              <span className="tabular-nums">{formatINR(maxBudget)}</span>
-            </label>
             <input
               type="range"
               min={BUDGET_MIN}
@@ -188,22 +217,26 @@ function DiscoverInner() {
               onChange={(e) =>
                 setParam({ max: String(Math.max(Number(e.target.value), minBudget)) })
               }
-              className="w-full"
+              className="w-full accent-brand-teal"
             />
           </fieldset>
 
-          <Select
-            label="Region"
-            value={region}
-            onChange={(e) => setParam({ region: e.target.value })}
-          >
-            <option value="">All regions</option>
-            {REGIONS.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </Select>
+          <div className="hidden h-10 w-px self-center bg-line sm:block" />
+
+          <div className="min-w-[150px]">
+            <Select
+              label="Region"
+              value={region}
+              onChange={(e) => setParam({ region: e.target.value })}
+            >
+              <option value="">All regions</option>
+              {REGIONS.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </Select>
+          </div>
 
           <TagPicker
             legend="Interests"
@@ -217,9 +250,14 @@ function DiscoverInner() {
             }}
           />
 
-          <fieldset className="space-y-2">
-            <legend className="text-sm font-medium">Sort by</legend>
-            <div className="flex gap-2" role="radiogroup" aria-label="Sort by">
+          {/* Segmented control: the active option is a white pill on a warm track. */}
+          <fieldset className="ml-auto">
+            <legend className="text-xs text-text-subtle">Sort by</legend>
+            <div
+              role="radiogroup"
+              aria-label="Sort by"
+              className="mt-1 inline-flex rounded-full bg-[#efece4] p-0.5"
+            >
               {(["budget", "proximity"] as const).map((option) => (
                 <button
                   key={option}
@@ -227,10 +265,10 @@ function DiscoverInner() {
                   role="radio"
                   aria-checked={sort === option}
                   onClick={() => setParam({ sort: option })}
-                  className={`flex-1 rounded-lg border px-3 py-1.5 text-sm capitalize transition ${
+                  className={`rounded-full px-4 py-1.5 text-sm transition ${
                     sort === option
-                      ? "border-indigo-600 bg-indigo-600 text-white"
-                      : "border-black/15 hover:border-indigo-400 dark:border-white/20"
+                      ? "bg-white font-bold text-brand-teal shadow-sm"
+                      : "text-text-subtle hover:text-brand-teal"
                   }`}
                 >
                   {option === "budget" ? "Budget" : "Nearby"}
@@ -238,108 +276,100 @@ function DiscoverInner() {
               ))}
             </div>
           </fieldset>
-        </aside>
-
-        {/* Results + map */}
-        <section className="space-y-4">
-          <div className="h-72 overflow-hidden rounded-xl border border-black/10 dark:border-white/10">
-            <DestinationMap
-              destinations={destinations}
-              selected={selected}
-              onSelect={setSelected}
-            />
-          </div>
-
-          {error && (
-            <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">
-              {error}
-            </p>
-          )}
-          {loading ? (
-            <p className="text-sm text-black/60 dark:text-white/60">Loading…</p>
-          ) : (
-            <p className="text-sm text-black/60 dark:text-white/60">
-              {destinations.length} destination{destinations.length === 1 ? "" : "s"}
-            </p>
-          )}
-
-          <ul className="grid gap-4 sm:grid-cols-2">
-            {destinations.map((d) => {
-              const isSaved = d.id in savedByDest;
-              const isSelected = selected?.id === d.id;
-              return (
-                <li
-                  key={d.id}
-                  className={`card group overflow-hidden transition hover:-translate-y-0.5 hover:shadow-lg ${
-                    isSelected ? "ring-2 ring-indigo-500" : ""
-                  }`}
-                >
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={() => setSelected(d)}
-                      className="block w-full text-left"
-                      aria-label={`Focus ${d.name} on the map`}
-                    >
-                      <div className="relative h-44 w-full overflow-hidden">
-                        <Image
-                          src={d.image_url}
-                          alt={d.name}
-                          width={600}
-                          height={400}
-                          unoptimized
-                          className="h-44 w-full object-cover transition duration-300 group-hover:scale-105"
-                        />
-                        {/* Gradient scrim so the title reads over any photo. */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
-                        <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 shadow-sm backdrop-blur">
-                          {TIER_LABELS[d.budget_tier]}
-                        </span>
-                        <div className="absolute inset-x-3 bottom-2.5 flex items-end justify-between gap-2 text-white">
-                          <h2 className="text-lg font-bold drop-shadow">{d.name}</h2>
-                          <span className="whitespace-nowrap rounded-lg bg-white/95 px-2 py-1 text-xs font-bold text-indigo-700 shadow">
-                            {formatINR(d.avg_daily_budget)}
-                            <span className="font-medium text-black/60">/day</span>
-                          </span>
-                        </div>
-                      </div>
-                    </button>
-                    {/* Heart save, floating over the photo (MMT-style). */}
-                    <button
-                      type="button"
-                      onClick={() => toggleSave(d)}
-                      aria-pressed={isSaved}
-                      aria-label={isSaved ? `Unsave ${d.name}` : `Save ${d.name}`}
-                      className="absolute right-3 top-3 grid h-9 w-9 place-items-center rounded-full bg-white/90 text-lg shadow-sm backdrop-blur transition hover:scale-110"
-                    >
-                      <span className={isSaved ? "text-brand-saffron" : "text-black/40"}>
-                        {isSaved ? "♥" : "♡"}
-                      </span>
-                    </button>
-                  </div>
-                  <div className="space-y-2 p-3">
-                    <p className="text-sm text-black/60">
-                      {d.distance_km != null && `${d.distance_km} km away`}
-                      {d.distance_km != null && d.best_season && " · "}
-                      {d.best_season && `Best: ${d.best_season}`}
-                    </p>
-                    <div className="flex flex-wrap gap-1">
-                      {d.interest_tags.map((t) => (
-                        <span
-                          key={t}
-                          className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs capitalize text-indigo-700"
-                        >
-                          {t}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
+        </div>
       </div>
+
+      <div className="h-64 overflow-hidden rounded-[20px] border border-line">
+        <DestinationMap
+          destinations={destinations}
+          selected={selected}
+          onSelect={setSelected}
+        />
+      </div>
+
+      {error && (
+        <p
+          role="alert"
+          className="mt-4 rounded-xl bg-[#fbeae6] px-3 py-2 text-sm text-[#8c2f1d]"
+        >
+          {error}
+        </p>
+      )}
+
+      <ul className="mt-5 grid gap-[18px] sm:grid-cols-2 lg:grid-cols-3">
+        {destinations.map((d) => {
+          const isSaved = d.id in savedByDest;
+          const isSelected = selected?.id === d.id;
+          return (
+            <li
+              key={d.id}
+              className={`group overflow-hidden rounded-[18px] border bg-surface transition hover:-translate-y-0.5 ${
+                isSelected ? "border-brand-coral ring-1 ring-brand-coral" : "border-line"
+              }`}
+            >
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setSelected(d)}
+                  className="block w-full text-left"
+                  aria-label={`Focus ${d.name} on the map`}
+                >
+                  <div className="relative h-[150px] w-full overflow-hidden">
+                    <Image
+                      src={d.image_url}
+                      alt={d.name}
+                      width={600}
+                      height={400}
+                      unoptimized
+                      className="h-[150px] w-full object-cover transition duration-300 group-hover:scale-105"
+                    />
+                    <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-0.5 text-xs font-semibold text-brand-teal shadow-sm backdrop-blur">
+                      {TIER_LABELS[d.budget_tier]}
+                    </span>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSave(d)}
+                  aria-pressed={isSaved}
+                  aria-label={isSaved ? `Unsave ${d.name}` : `Save ${d.name}`}
+                  className="absolute right-3 top-3 grid h-[34px] w-[34px] place-items-center rounded-full bg-white shadow-sm transition hover:scale-110"
+                >
+                  <Heart
+                    filled={isSaved}
+                    className={`h-4 w-4 ${isSaved ? "text-brand-coral" : "text-[#c2c8c0]"}`}
+                  />
+                </button>
+              </div>
+
+              <div className="px-4 pb-4 pt-3.5">
+                <div className="flex items-baseline justify-between gap-2">
+                  <h2 className="text-[22px] leading-tight">{d.name}</h2>
+                  <span className="whitespace-nowrap font-serif text-[19px] text-brand-coral-ink">
+                    {formatINR(d.avg_daily_budget)}
+                    <span className="font-sans text-[11px] text-text-subtle">/day</span>
+                  </span>
+                </div>
+                <p className="mb-2.5 mt-1 text-xs text-text-subtle">
+                  {d.region}
+                  {d.distance_km != null && ` · ${d.distance_km} km away`}
+                  {d.best_season && ` · Best ${d.best_season}`}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {d.interest_tags.map((t) => (
+                    <span
+                      key={t}
+                      className="rounded-full bg-surface-alt px-2.5 py-0.5 text-[11px] capitalize text-brand-teal"
+                    >
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
     </main>
   );
 }

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ApiError } from "@/lib/api";
-import { avatarTint, initials, type Connection } from "@/lib/buddies";
+import { initials, monogramAccent, type Connection } from "@/lib/buddies";
 import {
   formatMessageTime,
   listMessages,
@@ -13,6 +13,25 @@ import {
   sendMessage,
   subscribeToMessages,
 } from "@/lib/messages";
+
+/** Lucide `send`, inlined — matches the other icons already inlined across the redesign. */
+function Send({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 24 24"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="m22 2-7 20-4-9-9-4Z" />
+      <path d="M22 2 11 13" />
+    </svg>
+  );
+}
 
 /**
  * One conversation: history from the API, new messages over Realtime.
@@ -145,48 +164,47 @@ export function MessageThread({ connection }: { connection: Connection }) {
 
   const other = connection.other;
   const remaining = MAX_BODY_LENGTH - draft.trim().length;
+  const accent = monogramAccent(other?.supabase_user_id ?? String(connection.id));
 
   return (
-    <section className="card flex h-[70vh] flex-col overflow-hidden">
-      <header className="brand-gradient flex items-center gap-3 px-4 py-3 text-white">
+    <section className="flex h-[70vh] flex-col overflow-hidden rounded-2xl border border-line bg-surface">
+      <header className="flex items-center gap-2.5 border-b border-line px-[18px] py-3.5">
         <span
           aria-hidden="true"
-          className={`flex h-10 w-10 items-center justify-center rounded-full text-xs font-bold shadow ring-2 ring-white/70 ${avatarTint(
-            other?.supabase_user_id ?? String(connection.id),
-          )}`}
+          className={`grid h-[34px] w-[34px] shrink-0 place-items-center rounded-full text-xs font-bold ${
+            accent === "teal" ? "bg-brand-teal text-background" : "bg-brand-coral text-white"
+          }`}
         >
           {initials(other?.display_name ?? "?")}
         </span>
         <div className="min-w-0">
-          <h2 className="truncate font-bold">
+          <h2 className="truncate text-sm font-semibold text-foreground">
             {other?.display_name ?? "Traveller"}
           </h2>
-          <p className="truncate text-xs text-white/75">
+          <p className="truncate text-xs text-text-subtle">
             {other?.area_label || "Area not set"}
           </p>
         </div>
         <span
           title={live ? "Receiving messages live" : "Reconnecting…"}
-          className={`ml-auto flex items-center gap-1.5 text-xs text-white/80`}
+          className="ml-auto flex items-center gap-1.5 text-xs text-text-subtle"
         >
           <span
-            className={`h-2 w-2 shrink-0 rounded-full ${
-              live ? "bg-emerald-400" : "bg-white/40"
-            }`}
+            className={`h-2 w-2 shrink-0 rounded-full ${live ? "bg-brand-teal" : "bg-line-input"}`}
           />
           {live ? "Live" : "Offline"}
         </span>
       </header>
 
-      <div className="flex-1 space-y-2 overflow-y-auto bg-black/[0.025] px-4 py-3">
+      <div className="flex-1 space-y-2 overflow-y-auto bg-background px-4 py-3">
         {loading && (
-          <p aria-busy="true" className="text-sm text-black/60 dark:text-white/60">
+          <p aria-busy="true" className="text-sm text-text-subtle">
             Loading messages…
           </p>
         )}
 
         {!loading && messages.length === 0 && (
-          <p className="py-8 text-center text-sm text-black/60 dark:text-white/60">
+          <p className="py-8 text-center text-sm text-text-subtle">
             No messages yet. Say hello.
           </p>
         )}
@@ -198,12 +216,9 @@ export function MessageThread({ connection }: { connection: Connection }) {
         <div ref={bottomRef} />
       </div>
 
-      <form
-        onSubmit={send}
-        className="border-t border-black/10 bg-white px-4 py-3"
-      >
+      <form onSubmit={send} className="border-t border-line bg-surface px-4 py-3">
         {error && (
-          <p role="alert" className="mb-2 text-xs text-red-600 dark:text-red-400">
+          <p role="alert" className="mb-2 text-xs text-brand-coral-ink">
             {error}
           </p>
         )}
@@ -213,7 +228,7 @@ export function MessageThread({ connection }: { connection: Connection }) {
           </label>
           <textarea
             id="message-body"
-            rows={2}
+            rows={1}
             value={draft}
             maxLength={MAX_BODY_LENGTH}
             onChange={(e) => setDraft(e.target.value)}
@@ -225,18 +240,19 @@ export function MessageThread({ connection }: { connection: Connection }) {
               }
             }}
             placeholder="Write a message…"
-            className="flex-1 resize-none rounded-xl border border-black/10 bg-white px-3.5 py-2.5 text-sm shadow-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/25"
+            className="flex-1 resize-none overflow-hidden rounded-full border border-line-input bg-white px-4 py-2.5 text-sm shadow-sm outline-none focus:border-brand-coral focus:ring-2 focus:ring-brand-coral/30"
           />
           <button
             type="submit"
             disabled={sending || draft.trim().length === 0}
-            className="rounded-full bg-gradient-to-r from-indigo-600 to-indigo-500 px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-indigo-600/25 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+            aria-label="Send"
+            className="grid h-[38px] w-[38px] shrink-0 place-items-center rounded-full bg-brand-coral text-white shadow-sm transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {sending ? "Sending…" : "Send"}
+            <Send className="h-[17px] w-[17px]" />
           </button>
         </div>
         {remaining < 200 && (
-          <p className="mt-1 text-right text-xs text-black/60 dark:text-white/60">
+          <p className="mt-1 text-right text-xs text-text-subtle">
             {remaining} characters left
           </p>
         )}
@@ -250,10 +266,10 @@ function MessageBubble({ message }: { message: Message }) {
   return (
     <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
       <div
-        className={`max-w-[75%] px-3.5 py-2 text-sm shadow-sm ${
+        className={`max-w-[75%] px-3.5 py-2 text-sm ${
           mine
-            ? "rounded-2xl rounded-br-md bg-gradient-to-r from-indigo-600 to-indigo-500 text-white"
-            : "rounded-2xl rounded-bl-md bg-white text-black"
+            ? "rounded-2xl rounded-br-md bg-brand-teal text-background"
+            : "rounded-2xl rounded-bl-md border border-line bg-white text-foreground"
         }`}
       >
         {/* Rendered as a text child: React escapes it. Never dangerouslySetInnerHTML. */}
@@ -261,7 +277,7 @@ function MessageBubble({ message }: { message: Message }) {
         <time
           dateTime={message.created_at}
           className={`mt-0.5 block text-[10px] ${
-            mine ? "text-white/70" : "text-black/60 dark:text-white/60"
+            mine ? "text-background/70" : "text-text-subtle"
           }`}
         >
           {formatMessageTime(message.created_at)}

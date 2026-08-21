@@ -4,9 +4,25 @@ import { useState } from "react";
 
 import { formatINR } from "@/lib/discover";
 import { AiDraft, applyItinerary, generateItinerary } from "@/lib/trips";
+import { FormError, Input } from "@/components/ui";
 
-const inputClass =
-  "w-full rounded-md border border-black/15 bg-transparent px-2 py-1 text-sm dark:border-white/20";
+/** Lucide `sparkles`, inlined — matches the other icons already inlined across the redesign. */
+function Sparkles({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 24 24"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z" />
+    </svg>
+  );
+}
 
 export default function AiItineraryPanel({
   tripId,
@@ -69,77 +85,75 @@ export default function AiItineraryPanel({
     target && target > 0 ? Math.min((total / target) * 100, 100) : total > 0 ? 100 : 0;
 
   return (
-    <section className="space-y-3 card p-4">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold">Generate with AI</h2>
-        <span className="text-xs text-black/40 dark:text-white/40">Draft — review before adding</span>
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-[#d7e0d8] bg-surface-alt p-4">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-brand-teal text-white">
+          <Sparkles className="h-[18px] w-[18px]" />
+        </span>
+        <div className="min-w-[200px] flex-1">
+          <h2 className="font-serif text-base text-brand-teal">
+            Draft my itinerary with AI
+          </h2>
+          <p className="mt-0.5 text-xs text-text-subtle">
+            Suggest a day-by-day plan from your dates &amp; interests.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={handleGenerate}
+          disabled={generating}
+          className="shrink-0 rounded-full bg-brand-coral px-5 py-2 text-sm font-bold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {generating ? "Drafting…" : "Generate"}
+        </button>
       </div>
 
       <div className="grid gap-2 sm:grid-cols-3">
-        <input
+        <Input
+          label="Style"
           value={style}
           onChange={(e) => setStyle(e.target.value)}
-          placeholder="Style (e.g. relaxed)"
-          aria-label="Travel style"
-          className={inputClass}
+          placeholder="e.g. relaxed"
         />
-        <input
+        <Input
+          label="Transport"
           value={transport}
           onChange={(e) => setTransport(e.target.value)}
-          placeholder="Transport (e.g. train)"
-          aria-label="Transport preference"
-          className={inputClass}
+          placeholder="e.g. train"
         />
-        <input
+        <Input
+          label="Stay"
           value={accommodation}
           onChange={(e) => setAccommodation(e.target.value)}
-          placeholder="Stay (e.g. hostel)"
-          aria-label="Accommodation preference"
-          className={inputClass}
+          placeholder="e.g. hostel"
         />
       </div>
 
-      <button
-        type="button"
-        onClick={handleGenerate}
-        disabled={generating}
-        className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {generating ? "Drafting…" : "Generate itinerary"}
-      </button>
-
-      {error && (
-        <p
-          role="alert"
-          className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300"
-        >
-          {error}
-        </p>
-      )}
+      {error && <FormError message={error} />}
 
       {draft && (
-        <div className="space-y-3">
+        <div className="space-y-3 rounded-2xl border border-line bg-surface p-4">
           {/* Budget bar */}
           <div>
             <div className="mb-1 flex items-center justify-between text-xs">
-              <span className="text-black/60 dark:text-white/60">
+              <span className="text-text-subtle">
                 Estimated total: {formatINR(total)}
                 {target != null && ` of ${formatINR(target)}`}
               </span>
               {draft.over_budget && (
-                <span className="font-semibold text-red-600">Over budget</span>
+                <span className="font-semibold text-brand-coral-ink">Over budget</span>
               )}
             </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
+            <div className="h-2 w-full overflow-hidden rounded-full bg-line">
               <div
-                className={`h-full ${draft.over_budget ? "bg-red-500" : "bg-emerald-500"}`}
+                className={`h-full ${draft.over_budget ? "bg-brand-coral" : "bg-brand-teal"}`}
                 style={{ width: `${pct}%` }}
               />
             </div>
           </div>
 
           {draft.over_budget && (
-            <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+            <p className="rounded-xl bg-brand-coral-tint px-3 py-2 text-xs text-brand-coral-ink">
               This plan exceeds the trip budget. The priciest items are flagged
               below — trim them, or add it anyway and adjust on the board.
             </p>
@@ -149,9 +163,9 @@ export default function AiItineraryPanel({
             {draft.days.map((day) => (
               <div
                 key={day.day_index}
-                className="space-y-2 rounded-lg border border-black/10 p-3 dark:border-white/10"
+                className="space-y-2 rounded-xl border border-line p-3"
               >
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-black/60 dark:text-white/60">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-text-subtle">
                   Day {day.day_index + 1}
                 </h3>
                 <ul className="space-y-2">
@@ -162,26 +176,24 @@ export default function AiItineraryPanel({
                     return (
                       <li
                         key={i}
-                        className={`rounded-md border p-2 text-sm ${
+                        className={`rounded-lg border p-2 text-sm ${
                           offending
-                            ? "border-red-300 bg-red-50/60 dark:border-red-900 dark:bg-red-950/20"
-                            : "border-black/10 dark:border-white/10"
+                            ? "border-brand-coral/40 bg-brand-coral-tint/60"
+                            : "border-line"
                         }`}
                       >
                         <div className="flex items-start justify-between gap-2">
                           <span className="font-medium">{item.title}</span>
-                          <span className="shrink-0 text-xs text-black/60 dark:text-white/60">
+                          <span className="shrink-0 text-xs text-text-subtle">
                             {formatINR(Number(item.est_cost))}
                           </span>
                         </div>
-                        <p className="text-xs text-black/60 dark:text-white/60">
+                        <p className="text-xs text-text-subtle">
                           {item.category}
                           {item.location && ` · ${item.location}`}
                         </p>
                         {item.notes && (
-                          <p className="mt-1 text-xs text-black/60 dark:text-white/60">
-                            {item.notes}
-                          </p>
+                          <p className="mt-1 text-xs text-text-subtle">{item.notes}</p>
                         )}
                       </li>
                     );
@@ -196,11 +208,11 @@ export default function AiItineraryPanel({
               type="button"
               onClick={handleApply}
               disabled={applying}
-              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:opacity-60"
+              className="rounded-full bg-brand-teal px-4 py-2 text-sm font-bold text-background transition hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {applying ? "Adding…" : "Add to my itinerary"}
             </button>
-            <label className="flex items-center gap-2 text-xs text-black/70 dark:text-white/70">
+            <label className="flex items-center gap-2 text-xs text-text-muted">
               <input
                 type="checkbox"
                 checked={addToBudget}

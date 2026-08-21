@@ -69,7 +69,7 @@ export function IncomingRequests({ onAnswered }: { onAnswered?: () => void }) {
   if (loading) {
     return (
       <section aria-busy="true" className="card p-4">
-        <h2 className="font-semibold">Requests</h2>
+        <h2 className="">Requests</h2>
         <p className="mt-2 text-sm text-black/60 dark:text-white/60">Loading…</p>
       </section>
     );
@@ -78,7 +78,7 @@ export function IncomingRequests({ onAnswered }: { onAnswered?: () => void }) {
   if (requests.length === 0) {
     return (
       <section className="card p-4">
-        <h2 className="font-semibold">Requests</h2>
+        <h2 className="">Requests</h2>
         <p className="mt-2 text-sm text-black/60 dark:text-white/60">
           No pending requests.
         </p>
@@ -88,7 +88,7 @@ export function IncomingRequests({ onAnswered }: { onAnswered?: () => void }) {
 
   return (
     <section className="card p-4">
-      <h2 className="font-semibold">
+      <h2 className="">
         Requests{" "}
         <span className="ml-1 rounded-full bg-indigo-600 px-2 py-0.5 text-xs font-semibold text-white">
           {requests.length}
@@ -124,7 +124,7 @@ export function IncomingRequests({ onAnswered }: { onAnswered?: () => void }) {
                   type="button"
                   disabled={busy === request.id}
                   onClick={() => answer(request, acceptConnection)}
-                  className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-60"
+                  className="rounded-full bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-60"
                 >
                   Accept
                 </button>
@@ -132,7 +132,7 @@ export function IncomingRequests({ onAnswered }: { onAnswered?: () => void }) {
                   type="button"
                   disabled={busy === request.id}
                   onClick={() => answer(request, declineConnection)}
-                  className="rounded-lg border border-black/15 px-3 py-1.5 text-xs font-semibold transition hover:border-black/30 disabled:opacity-60 dark:border-white/20 dark:hover:border-white/40"
+                  className="rounded-lg border border-line-input px-3 py-1.5 text-xs font-semibold transition hover:border-black/30 disabled:opacity-60 dark:border-white/20 dark:hover:border-white/40"
                 >
                   Decline
                 </button>

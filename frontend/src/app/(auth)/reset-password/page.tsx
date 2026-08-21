@@ -40,14 +40,14 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <section className="space-y-5 card p-6">
-      <h1 className="text-lg font-semibold">Reset your password</h1>
+    <section className="space-y-5">
+      <h1 className="text-[28px] leading-none">Reset your password</h1>
       {sent ? (
         <FormSuccess message="If an account exists for that email, a password-reset link is on its way." />
       ) : (
         <form onSubmit={onSubmit} className="space-y-4" noValidate>
           <FormError message={error} />
-          <p className="text-sm text-black/60 dark:text-white/60">
+          <p className="text-sm text-text-subtle">
             Enter your email and we&apos;ll send you a link to choose a new password.
           </p>
           <Input
@@ -60,12 +60,12 @@ export default function ResetPasswordPage() {
             error={fieldError}
             required
           />
-          <Button type="submit" loading={loading}>
+          <Button variant="coral" type="submit" loading={loading}>
             Send reset link
           </Button>
         </form>
       )}
-      <Link href="/login" className="block text-center text-sm text-indigo-600 underline underline-offset-2">
+      <Link href="/login" className="block text-center text-sm font-bold text-brand-coral-ink">
         Back to sign in
       </Link>
     </section>

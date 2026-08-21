@@ -18,9 +18,9 @@ export default function LoginPage() {
 
 function LoginFallback() {
   return (
-    <section className="space-y-5 card p-6">
-      <h1 className="text-lg font-semibold">Sign in</h1>
-      <p className="text-sm text-black/60 dark:text-white/60">Loading…</p>
+    <section className="space-y-1">
+      <h1 className="text-[28px] leading-none">Welcome back</h1>
+      <p className="text-sm text-text-subtle">Loading…</p>
     </section>
   );
 }
@@ -65,8 +65,11 @@ function LoginForm() {
   }
 
   return (
-    <section className="space-y-5 card p-6">
-      <h1 className="text-lg font-semibold">Sign in</h1>
+    <section className="space-y-5">
+      <div>
+        <h1 className="text-[28px] leading-none">Welcome back</h1>
+        <p className="mt-1 text-sm text-text-subtle">Sign in to plan your next trip.</p>
+      </div>
       <form onSubmit={onSubmit} className="space-y-4" noValidate>
         <FormError message={formError} />
         <Input
@@ -90,17 +93,17 @@ function LoginForm() {
           required
         />
         <div className="text-right text-sm">
-          <Link href="/reset-password" className="text-indigo-600 underline underline-offset-2">
+          <Link href="/reset-password" className="font-bold text-brand-coral-ink">
             Forgot password?
           </Link>
         </div>
-        <Button type="submit" loading={loading}>
+        <Button variant="coral" type="submit" loading={loading}>
           Sign in
         </Button>
       </form>
-      <p className="text-center text-sm text-black/60 dark:text-white/60">
+      <p className="text-center text-sm text-text-subtle">
         New here?{" "}
-        <Link href="/register" className="text-indigo-600 underline underline-offset-2">
+        <Link href="/register" className="font-bold text-brand-coral-ink">
           Create an account
         </Link>
       </p>

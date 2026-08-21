@@ -103,7 +103,11 @@ export default function ProfilePage() {
   }
 
   if (loading) {
-    return <main className="mx-auto max-w-lg px-4 py-10">Loading…</main>;
+    return (
+      <main className="mx-auto max-w-lg px-4 py-10 text-sm text-text-subtle">
+        Loading…
+      </main>
+    );
   }
   if (!values || !profile) {
     return (
@@ -116,10 +120,10 @@ export default function ProfilePage() {
   return (
     <main className="mx-auto w-full max-w-lg px-4 py-10">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Your profile</h1>
+        <h1 className="text-3xl tracking-tight">Your profile</h1>
         <SignOutButton />
       </div>
-      <p className="mt-1 text-sm text-black/60 dark:text-white/60">
+      <p className="mt-1 text-sm text-text-subtle">
         {profile.email}
         {profile.area_label ? ` · ${profile.area_label}` : ""}
       </p>
@@ -130,7 +134,7 @@ export default function ProfilePage() {
         <IdentityFields values={values} errors={errors} set={set} />
         <PreferenceFields values={values} errors={errors} set={set} />
 
-        <div className="space-y-1 border-t border-black/10 pt-5 dark:border-white/15">
+        <div className="space-y-1 border-t border-line pt-5">
           <Input
             label="Change your city"
             name="city"
@@ -139,7 +143,7 @@ export default function ProfilePage() {
             onChange={(e) => setCity(e.target.value)}
             error={errors.city}
           />
-          <p className="text-xs text-black/60 dark:text-white/60">
+          <p className="text-xs text-text-subtle">
             {profile.area_label
               ? `Currently: ${profile.area_label}. `
               : ""}
@@ -148,7 +152,7 @@ export default function ProfilePage() {
           </p>
         </div>
 
-        <Button type="submit" loading={saving}>
+        <Button variant="coral" type="submit" loading={saving}>
           Save changes
         </Button>
       </form>

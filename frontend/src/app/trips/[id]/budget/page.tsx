@@ -115,7 +115,7 @@ export default function TripBudgetPage() {
     <main className="mx-auto w-full max-w-4xl flex-1 space-y-6 px-4 py-6">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight">
+          <h1 className="text-3xl tracking-tight">
             {trip?.title ?? "Trip"} budget
           </h1>
           <p className="text-sm text-black/60 dark:text-white/60">
@@ -126,7 +126,7 @@ export default function TripBudgetPage() {
           type="button"
           onClick={handleDownload}
           disabled={downloading}
-          className="shrink-0 rounded-lg border border-black/15 px-4 py-2 text-sm font-medium transition hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/20 dark:hover:bg-white/10"
+          className="shrink-0 rounded-lg border border-line-input px-4 py-2 text-sm font-medium transition hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/20 dark:hover:bg-white/10"
         >
           {downloading ? "Preparing…" : "Download CSV"}
         </button>
