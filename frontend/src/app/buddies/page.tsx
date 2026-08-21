@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import type { ChangeEvent, ReactNode } from "react";
 
 import { ApiError } from "@/lib/api";
 import {
@@ -15,7 +16,39 @@ import { Destination, listDestinations } from "@/lib/discover";
 import { AGE_BANDS, GENDERS } from "@/lib/vocab";
 import { BuddyCard } from "@/components/BuddyCard";
 import { IncomingRequests } from "@/components/IncomingRequests";
-import { Select } from "@/components/ui";
+import { FormError, Select } from "@/components/ui";
+
+/** One segment of the radius/age pill control — a native `<select>` styled as a white pill on the `#efece4` track, so every radius/age option stays reachable. */
+function PillSelect({
+  label,
+  value,
+  onChange,
+  children,
+}: {
+  label: string;
+  value: string;
+  onChange: (e: ChangeEvent<HTMLSelectElement>) => void;
+  children: ReactNode;
+}) {
+  return (
+    <label className="relative block">
+      <span className="sr-only">{label}</span>
+      <select
+        value={value}
+        onChange={onChange}
+        className="cursor-pointer appearance-none rounded-full bg-white py-1.5 pl-4 pr-7 text-sm font-bold text-brand-teal shadow-sm outline-none"
+      >
+        {children}
+      </select>
+      <span
+        aria-hidden
+        className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-text-subtle"
+      >
+        ▾
+      </span>
+    </label>
+  );
+}
 
 function BuddiesInner() {
   const router = useRouter();
@@ -107,34 +140,48 @@ function BuddiesInner() {
 
   return (
     <main className="mx-auto w-full max-w-7xl flex-1 p-6">
-      <header className="mb-6">
-        <h1 className="text-3xl font-extrabold tracking-tight">Find travel buddies</h1>
-        <p className="mt-1 text-sm text-black/60 dark:text-white/60">
-          Ranked by how well your interests, budget, languages, age and saved
-          destinations line up — and how close you are. Locations are always
-          approximate.
-        </p>
+      <header className="mb-5 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-4xl leading-none tracking-tight">Your buddies</h1>
+          <p className="mt-1.5 text-sm text-text-subtle">
+            Ranked by how well your interests, budget, languages, age and saved
+            destinations line up — and how close you are. Locations are always
+            approximate.
+          </p>
+        </div>
+        <div className="inline-flex gap-1 rounded-full bg-[#efece4] p-1">
+          <PillSelect
+            label="Radius"
+            value={String(radiusKm)}
+            onChange={(e) => setParam({ radius: e.target.value })}
+          >
+            {RADIUS_OPTIONS.map((km) => (
+              <option key={km} value={km}>
+                {km} km
+              </option>
+            ))}
+          </PillSelect>
+          <PillSelect
+            label="Age band"
+            value={ageBand}
+            onChange={(e) => setParam({ age_band: e.target.value })}
+          >
+            <option value="">All ages</option>
+            {AGE_BANDS.map((band) => (
+              <option key={band} value={band}>
+                {band}
+              </option>
+            ))}
+          </PillSelect>
+        </div>
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
         <div className="order-2 lg:order-1">
           <section
-            aria-label="Filters"
-            className="card mb-5 grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4"
+            aria-label="More filters"
+            className="mb-5 grid gap-3 rounded-[18px] border border-line bg-surface p-4 sm:grid-cols-2"
           >
-            <Select
-              label="Within"
-              name="radius"
-              value={String(radiusKm)}
-              onChange={(e) => setParam({ radius: e.target.value })}
-            >
-              {RADIUS_OPTIONS.map((km) => (
-                <option key={km} value={km}>
-                  {km} km
-                </option>
-              ))}
-            </Select>
-
             <Select
               label="Gender"
               name="gender"
@@ -145,20 +192,6 @@ function BuddiesInner() {
               {GENDERS.map((g) => (
                 <option key={g.value} value={g.value}>
                   {g.label}
-                </option>
-              ))}
-            </Select>
-
-            <Select
-              label="Age band"
-              name="age_band"
-              value={ageBand}
-              onChange={(e) => setParam({ age_band: e.target.value })}
-            >
-              <option value="">Any age</option>
-              {AGE_BANDS.map((band) => (
-                <option key={band} value={band}>
-                  {band}
                 </option>
               ))}
             </Select>
@@ -179,7 +212,7 @@ function BuddiesInner() {
           </section>
 
           {needsArea && (
-            <p className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+            <p className="rounded-xl bg-brand-coral-tint px-4 py-3 text-sm text-brand-coral-ink">
               Add your city in{" "}
               <Link href="/profile" className="font-semibold underline">
                 your profile
@@ -188,22 +221,18 @@ function BuddiesInner() {
             </p>
           )}
 
-          {error && (
-            <p role="alert" className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">
-              {error}
-            </p>
-          )}
+          {error && <FormError message={error} />}
 
           {loading && (
-            <p aria-busy="true" className="text-sm text-black/60 dark:text-white/60">
+            <p aria-busy="true" className="text-sm text-text-subtle">
               Finding travellers…
             </p>
           )}
 
           {!loading && !error && !needsArea && candidates.length === 0 && (
-            <div className="rounded-xl border border-dashed border-black/15 p-8 text-center dark:border-white/20">
-              <p className="font-medium">No travellers match yet.</p>
-              <p className="mt-1 text-sm text-black/60 dark:text-white/60">
+            <div className="rounded-xl border border-dashed border-line-input p-8 text-center">
+              <p className="font-medium text-brand-teal">No travellers match yet.</p>
+              <p className="mt-1 text-sm text-text-subtle">
                 Try a wider radius or fewer filters.
               </p>
             </div>
@@ -211,16 +240,17 @@ function BuddiesInner() {
 
           {!loading && candidates.length > 0 && (
             <>
-              <p className="mb-3 text-sm text-black/60 dark:text-white/60">
+              <p className="mb-3 text-sm text-text-subtle">
                 {candidates.length} traveller{candidates.length === 1 ? "" : "s"}{" "}
                 within {radiusKm} km
               </p>
-              <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {candidates.map((candidate) => (
+              <ul className="grid gap-[18px] sm:grid-cols-2 xl:grid-cols-3">
+                {candidates.map((candidate, i) => (
                   <li key={candidate.supabase_user_id} className="flex">
                     <div className="flex w-full flex-col">
                       <BuddyCard
                         candidate={candidate}
+                        index={i}
                         onConnected={removeCandidate}
                       />
                     </div>

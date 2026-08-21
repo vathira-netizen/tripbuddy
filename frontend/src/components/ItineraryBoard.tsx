@@ -204,15 +204,12 @@ function DayColumn({
       ref={setNodeRef}
       className={`flex flex-col gap-2 rounded-2xl border p-3 transition ${
         isOver
-          ? "border-indigo-400 bg-indigo-50 ring-2 ring-indigo-400/40"
-          : "border-black/5 bg-black/[0.025]"
+          ? "border-brand-teal bg-surface-alt ring-2 ring-brand-teal/30"
+          : "border-line bg-surface"
       }`}
     >
-      <h3 className="flex items-center gap-2 text-sm font-bold text-indigo-900">
-        <span className="grid h-6 w-6 place-items-center rounded-full brand-gradient text-xs font-bold text-white">
-          {day + 1}
-        </span>
-        {label}
+      <h3 className="font-serif text-[15px] text-brand-teal">
+        Day {day + 1} · {label}
       </h3>
 
       <SortableContext
@@ -231,18 +228,21 @@ function DayColumn({
         </ul>
       </SortableContext>
 
-      <form onSubmit={submitNew} className="mt-1 flex gap-1.5">
+      <form
+        onSubmit={submitNew}
+        className="mt-1 flex items-center gap-1.5 rounded-[10px] border-[1.5px] border-dashed border-[#d5d9d0] p-1.5"
+      >
         <input
           value={newTitle}
           onChange={(e) => setNewTitle(e.target.value)}
-          placeholder="Add an item…"
+          placeholder="+ Add item…"
           aria-label={`Add an item to ${label}`}
-          className="w-full rounded-lg border border-black/10 bg-white px-2.5 py-1.5 text-sm shadow-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/25"
+          className="w-full bg-transparent px-1 text-sm text-[#1c2b2b] outline-none placeholder:text-[#a6aca4]"
         />
         <button
           type="submit"
           disabled={!newTitle.trim()}
-          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-r from-indigo-600 to-indigo-500 text-lg font-bold text-white shadow-sm transition hover:brightness-110 disabled:opacity-40"
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-brand-teal text-base font-bold text-background transition hover:brightness-90 disabled:opacity-40"
           aria-label="Add"
         >
           +
@@ -283,7 +283,7 @@ function ItemCard({
     <li
       ref={setNodeRef}
       style={style}
-      className="rounded-xl border-l-4 border-l-indigo-500 bg-white p-2.5 text-sm shadow-sm transition hover:shadow-md"
+      className="rounded-[10px] border border-line bg-white p-2.5 text-sm transition hover:border-brand-teal/40"
     >
       {editing ? (
         <form onSubmit={save} className="space-y-2">
@@ -291,7 +291,7 @@ function ItemCard({
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             aria-label="Item title"
-            className="w-full rounded-md border border-black/15 bg-transparent px-2 py-1 dark:border-white/20"
+            className="w-full rounded-md border border-line-input bg-white px-2 py-1 outline-none focus:border-brand-coral focus:ring-2 focus:ring-brand-coral/30"
           />
           <textarea
             value={notes}
@@ -299,12 +299,12 @@ function ItemCard({
             placeholder="Notes"
             aria-label="Item notes"
             rows={2}
-            className="w-full rounded-md border border-black/15 bg-transparent px-2 py-1 text-xs dark:border-white/20"
+            className="w-full rounded-md border border-line-input bg-white px-2 py-1 text-xs outline-none focus:border-brand-coral focus:ring-2 focus:ring-brand-coral/30"
           />
           <div className="flex gap-2">
             <button
               type="submit"
-              className="rounded-md bg-indigo-600 px-2 py-1 text-xs font-medium text-white"
+              className="rounded-full bg-brand-teal px-3 py-1 text-xs font-bold text-background"
             >
               Save
             </button>
@@ -315,7 +315,7 @@ function ItemCard({
                 setNotes(item.notes);
                 setEditing(false);
               }}
-              className="rounded-md border border-black/15 px-2 py-1 text-xs dark:border-white/20"
+              className="rounded-full border border-[#d5d9d0] px-3 py-1 text-xs font-semibold text-brand-teal"
             >
               Cancel
             </button>
@@ -328,14 +328,14 @@ function ItemCard({
             {...attributes}
             {...listeners}
             aria-label="Drag to reorder"
-            className="mt-0.5 cursor-grab touch-none text-black/30 dark:text-white/30"
+            className="mt-0.5 cursor-grab touch-none text-text-subtle/60"
           >
             ⠿
           </button>
           <div className="min-w-0 flex-1">
             <p className="font-medium">{item.title}</p>
             {item.notes && (
-              <p className="whitespace-pre-wrap text-xs text-black/60 dark:text-white/60">
+              <p className="whitespace-pre-wrap text-xs text-text-subtle">
                 {item.notes}
               </p>
             )}
@@ -345,7 +345,7 @@ function ItemCard({
               type="button"
               onClick={() => setEditing(true)}
               aria-label="Edit item"
-              className="text-xs text-black/60 hover:text-black dark:text-white/60 dark:hover:text-white"
+              className="text-xs text-text-subtle hover:text-brand-teal"
             >
               Edit
             </button>
@@ -353,7 +353,7 @@ function ItemCard({
               type="button"
               onClick={() => onDelete(item.id)}
               aria-label="Remove item"
-              className="text-xs text-red-600/80 hover:text-red-600"
+              className="text-xs text-brand-coral-ink/80 hover:text-brand-coral-ink"
             >
               ✕
             </button>

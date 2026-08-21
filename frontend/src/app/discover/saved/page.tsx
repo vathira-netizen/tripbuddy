@@ -34,7 +34,7 @@ export default function SavedPage() {
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6">
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-3xl font-extrabold tracking-tight">Saved destinations</h1>
+        <h1 className="text-3xl tracking-tight">Saved destinations</h1>
         <Link href="/discover" className="text-sm font-medium text-indigo-600">
           ← Discover
         </Link>
@@ -68,8 +68,8 @@ export default function SavedPage() {
                   {TIER_LABELS[d.budget_tier]}
                 </span>
                 <div className="absolute inset-x-3 bottom-2.5 flex items-end justify-between gap-2 text-white">
-                  <h2 className="text-lg font-bold drop-shadow">{d.name}</h2>
-                  <span className="whitespace-nowrap rounded-lg bg-white/95 px-2 py-1 text-xs font-bold text-indigo-700 shadow">
+                  <h2 className="text-lg text-white drop-shadow">{d.name}</h2>
+                  <span className="whitespace-nowrap rounded-lg bg-white/95 px-2 py-1 text-xs font-bold text-brand-coral-ink shadow">
                     {formatINR(d.avg_daily_budget)}
                     <span className="font-medium text-black/60">/day</span>
                   </span>
@@ -79,7 +79,7 @@ export default function SavedPage() {
                 <button
                   type="button"
                   onClick={() => remove({ id, destination: d, created_at: "" })}
-                  className="w-full rounded-full border border-black/15 px-3 py-1.5 text-sm font-semibold text-black/70 transition hover:border-brand-saffron hover:text-brand-saffron"
+                  className="w-full rounded-full border border-line-input px-3 py-1.5 text-sm font-semibold text-black/70 transition hover:border-brand-coral-ink hover:text-brand-coral-ink"
                 >
                   ♥ Remove
                 </button>

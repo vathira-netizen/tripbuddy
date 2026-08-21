@@ -9,66 +9,93 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
- * TripBuddy design system — MakeMyTrip-inspired.
- * Bright blue primary, saffron CTA accent, light-gray canvas, white rounded
- * cards with soft shadows. Committed to a light theme (the brand is light).
+ * TripBuddy design system — "Coastal".
+ * Ivory canvas, deep-teal primary, coral highlight; DM Serif Display headings
+ * over DM Sans body. Committed to a light theme (the brand is light).
  *
- * The whole app accents off Tailwind's `indigo-*` utilities, so we remap the
- * indigo scale to the brand blue here — every existing page is rebranded
- * without touching its markup.
+ * The app accents off Tailwind's `indigo-*` utilities, so the indigo scale is
+ * remapped to the teal ramp — every primary surface rebrands without touching
+ * markup. Coral is opt-in via `brand-coral` / `.cta-coral` on the handful of
+ * places that are genuinely a highlight: CTAs, active nav, prices, scores.
  */
 
 :root {
-  --background: #f2f4f8;
-  --foreground: #1a1a1a;
+  --background: #f2f0ea;
+  --foreground: #1c2b2b;
   color-scheme: light;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-dm-sans);
+  --font-serif: var(--font-dm-serif);
 
-  /* Brand blue, mapped onto the indigo scale used across the app. */
-  --color-indigo-50: #eaf4ff;
-  --color-indigo-100: #d3e8ff;
-  --color-indigo-200: #a9d1ff;
-  --color-indigo-300: #6fb2ff;
-  --color-indigo-400: #3d97ff;
-  --color-indigo-500: #1a83ff;
-  --color-indigo-600: #0770e3;
-  --color-indigo-700: #0a5cba;
-  --color-indigo-800: #0d4a92;
-  --color-indigo-900: #0f3d75;
+  /* Surfaces & lines. */
+  --color-surface: #fbfaf6;
+  --color-surface-alt: #eef2ef;
+  --color-line: #e7e4da;
+  --color-line-input: #d5d9d0;
 
-  /* Saffron / coral CTA accent (MMT's warm highlight). */
-  --color-brand-saffron: #ff664b;
-  --color-brand-amber: #ffb700;
+  /* Text. */
+  --color-text-muted: #566060;
+  --color-text-subtle: #7c847c;
+
+  /* Brand. */
+  --color-brand-teal: #0f3d3e;
+  --color-brand-coral: #e8674c;
+  --color-brand-coral-ink: #c2502f;
+  --color-brand-coral-tint: #fbe9e4;
+
+  /* Teal ramp, mapped onto the indigo scale used across the app.
+     600 is the primary #0f3d3e; 50 is the surface-alt tint. */
+  --color-indigo-50: #eef2ef;
+  --color-indigo-100: #dce7e3;
+  --color-indigo-200: #b8cfc9;
+  --color-indigo-300: #8db3ac;
+  --color-indigo-400: #5c918d;
+  --color-indigo-500: #1f5657;
+  --color-indigo-600: #0f3d3e;
+  --color-indigo-700: #0b2f30;
+  --color-indigo-800: #082526;
+  --color-indigo-900: #061c1d;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), system-ui, Arial, Helvetica, sans-serif;
+  font-family: var(--font-dm-sans), system-ui, Arial, Helvetica, sans-serif;
+}
+
+@layer base {
+  /* Page and card titles are the serif display face, in teal. The `text-xs` /
+     `text-sm` exclusions skip the small uppercase section labels, which stay
+     sans. An explicit `text-*` colour utility (headings on a teal banner or a
+     photo scrim) still wins — utilities outrank base. */
+  h1:not([class*="text-xs"]):not([class*="text-sm"]),
+  h2:not([class*="text-xs"]):not([class*="text-sm"]) {
+    font-family: var(--font-dm-serif), Georgia, serif;
+    font-weight: 400;
+    color: var(--color-brand-teal);
+  }
 }
 
 @layer components {
-  /* Deep blue gradient used by the header and hero banner. */
-  .brand-gradient {
-    background-image: linear-gradient(105deg, #0b1f5c 0%, #0a5cba 55%, #008cff 100%);
+  /* Solid teal band: headers, banners, footer. */
+  .brand-teal {
+    background-color: var(--color-brand-teal);
   }
 
-  /* Saffron→coral gradient for primary CTAs. */
-  .cta-gradient {
-    background-image: linear-gradient(92deg, #ff764b 0%, #ff3e6c 100%);
+  /* Coral pill for the primary call to action. */
+  .cta-coral {
+    background-color: var(--color-brand-coral);
+    color: #ffffff;
   }
 
-  /* White card on the gray canvas. */
+  /* Off-white card on the ivory canvas — separated by a line, not a shadow. */
   .card {
-    background: #ffffff;
-    border-radius: 1rem;
-    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06),
-      0 8px 24px -12px rgba(16, 24, 40, 0.18);
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: 16px;
   }
 }
