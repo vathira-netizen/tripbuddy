@@ -8,24 +8,25 @@ import "leaflet/dist/leaflet.css";
 import type { Destination } from "@/lib/discover";
 import { formatINR } from "@/lib/discover";
 
-// Leaflet's marker images are served from public/ rather than imported from
-// node_modules.
-//
-// Importing them used to work by reading `.src` off the module, but Turbopack
-// does not put node_modules images through the static-image loader, so `.src`
-// came back undefined and Leaflet threw "iconUrl not set in Icon options" —
-// which took the whole discovery page down, not just the marker. Plain paths
-// depend on no loader behaviour at all. The files are copied from
-// leaflet/dist/images; keep them in step if Leaflet is upgraded.
-const defaultIcon = L.icon({
-  iconUrl: "/leaflet/marker-icon.png",
-  iconRetinaUrl: "/leaflet/marker-icon-2x.png",
-  shadowUrl: "/leaflet/marker-shadow.png",
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
-});
+// Numbered circular markers, drawn as a divIcon rather than the stock pin PNGs
+// (ref 6a). Coral marks the selected destination, teal the rest.
+const TEAL = "#0f3d3e";
+const CORAL = "#e8674c";
+
+function numberedIcon(n: number, active: boolean) {
+  const size = active ? 26 : 24;
+  return L.divIcon({
+    className: "", // Leaflet's default adds a white box; we draw our own.
+    html:
+      `<span style="display:grid;place-items:center;width:${size}px;height:${size}px;` +
+      `border-radius:9999px;background:${active ? CORAL : TEAL};color:#fff;` +
+      `font:700 ${active ? 12 : 11}px/1 var(--font-dm-sans),system-ui,sans-serif;` +
+      `box-shadow:0 3px 10px rgba(0,0,0,.3)">${n}</span>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -size / 2],
+  });
+}
 
 // India-ish default view when there's nothing to fit to.
 const INDIA_CENTER: [number, number] = [22.35, 78.66];
@@ -74,11 +75,11 @@ export default function DestinationMap({
       />
       <FitBounds destinations={destinations} />
       <FocusMarker target={selected} />
-      {destinations.map((d) => (
+      {destinations.map((d, i) => (
         <Marker
           key={d.id}
           position={[d.lat, d.lng]}
-          icon={defaultIcon}
+          icon={numberedIcon(i + 1, selected?.id === d.id)}
           eventHandlers={{ click: () => onSelect(d) }}
         >
           <Popup>

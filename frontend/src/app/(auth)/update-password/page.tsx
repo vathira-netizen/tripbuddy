@@ -64,8 +64,8 @@ export default function UpdatePasswordPage() {
   }
 
   return (
-    <section className="space-y-5 card p-6">
-      <h1 className="text-lg font-semibold">Choose a new password</h1>
+    <section className="space-y-5">
+      <h1 className="text-[28px] leading-none">Choose a new password</h1>
       <form onSubmit={onSubmit} className="space-y-4" noValidate>
         <FormError message={formError} />
         <Input
@@ -88,7 +88,7 @@ export default function UpdatePasswordPage() {
           error={errors.confirmPassword}
           required
         />
-        <Button type="submit" loading={loading} disabled={!ready}>
+        <Button variant="coral" type="submit" loading={loading} disabled={!ready}>
           Update password
         </Button>
       </form>

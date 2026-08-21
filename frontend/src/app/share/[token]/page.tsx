@@ -38,13 +38,13 @@ export default function SharedTripPage() {
   if (status === "gone" || !trip) {
     return (
       <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-16 text-center">
-        <h1 className="text-xl font-bold">This itinerary isn’t available</h1>
+        <h1 className="text-xl">This itinerary isn’t available</h1>
         <p className="mt-2 text-sm text-black/60 dark:text-white/60">
           The link may have been turned off by its owner.
         </p>
         <Link
           href="/"
-          className="mt-6 inline-block rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700"
+          className="mt-6 inline-block rounded-full bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700"
         >
           Plan your own trip
         </Link>
@@ -66,7 +66,7 @@ export default function SharedTripPage() {
           <p className="text-xs uppercase tracking-wide text-black/60 dark:text-white/60">
             Shared itinerary
           </p>
-          <h1 className="text-3xl font-extrabold tracking-tight">{trip.title}</h1>
+          <h1 className="text-3xl tracking-tight">{trip.title}</h1>
           <p className="text-sm text-black/60 dark:text-white/60">
             {trip.owner_name && `by ${trip.owner_name} · `}
             {trip.start_date ?? "Dates TBD"}
@@ -75,7 +75,7 @@ export default function SharedTripPage() {
         </div>
         <Link
           href="/"
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700"
+          className="rounded-full bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700"
         >
           Plan your own trip
         </Link>
@@ -97,7 +97,7 @@ export default function SharedTripPage() {
                 {col.map((item, i) => (
                   <li
                     key={i}
-                    className="rounded-lg border border-black/10 bg-white p-2 text-sm shadow-sm dark:border-white/10 dark:bg-white/5"
+                    className="rounded-lg border border-line-input bg-white p-2 text-sm shadow-sm dark:border-white/10 dark:bg-white/5"
                   >
                     <p className="font-medium">{item.title}</p>
                     {item.notes && (

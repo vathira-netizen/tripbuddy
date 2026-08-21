@@ -66,12 +66,12 @@ export default function RegisterPage() {
 
   if (needsConfirmation) {
     return (
-      <section className="space-y-4 card p-6">
-        <h1 className="text-lg font-semibold">Check your email</h1>
+      <section className="space-y-4">
+        <h1 className="text-[28px] leading-none">Check your email</h1>
         <FormSuccess
           message={`We sent a confirmation link to ${values.email}. Click it to activate your account, then sign in.`}
         />
-        <Link href="/login" className="block text-center text-sm text-indigo-600 underline underline-offset-2">
+        <Link href="/login" className="block text-center text-sm font-bold text-brand-coral-ink">
           Back to sign in
         </Link>
       </section>
@@ -79,8 +79,11 @@ export default function RegisterPage() {
   }
 
   return (
-    <section className="space-y-5 card p-6">
-      <h1 className="text-lg font-semibold">Create your account</h1>
+    <section className="space-y-5">
+      <div>
+        <h1 className="text-[28px] leading-none">Create your account</h1>
+        <p className="mt-1 text-sm text-text-subtle">Start planning your next trip.</p>
+      </div>
       <form onSubmit={onSubmit} className="space-y-4" noValidate>
         <FormError message={formError} />
         <Input
@@ -113,13 +116,13 @@ export default function RegisterPage() {
           error={errors.confirmPassword}
           required
         />
-        <Button type="submit" loading={loading}>
+        <Button variant="coral" type="submit" loading={loading}>
           Create account
         </Button>
       </form>
-      <p className="text-center text-sm text-black/60 dark:text-white/60">
+      <p className="text-center text-sm text-text-subtle">
         Already have an account?{" "}
-        <Link href="/login" className="text-indigo-600 underline underline-offset-2">
+        <Link href="/login" className="font-bold text-brand-coral-ink">
           Sign in
         </Link>
       </p>
