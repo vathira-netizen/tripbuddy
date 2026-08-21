@@ -92,18 +92,20 @@ export default function OnboardingPage() {
 
   return (
     <main className="mx-auto w-full max-w-lg px-4 py-10">
-      <h1 className="text-xl font-semibold">Set up your travel profile</h1>
+      <h1 className="text-3xl tracking-tight">Set up your travel profile</h1>
 
       <ol className="mt-4 flex gap-2" aria-label="Onboarding progress">
         {STEPS.map((label, i) => (
           <li key={label} className="flex-1">
             <div
               aria-current={i === step ? "step" : undefined}
-              className={`h-1.5 rounded-full ${
-                i <= step ? "bg-indigo-600" : "bg-black/10 dark:bg-white/15"
-              }`}
+              className={`h-1.5 rounded-full ${i <= step ? "bg-brand-teal" : "bg-[#dcdcd3]"}`}
             />
-            <span className="mt-1 block text-xs text-black/60 dark:text-white/60">
+            <span
+              className={`mt-1 block text-xs ${
+                i === step ? "font-bold text-brand-teal" : "text-text-subtle"
+              }`}
+            >
               {label}
             </span>
           </li>
@@ -134,7 +136,7 @@ export default function OnboardingPage() {
               error={errors.city}
               required
             />
-            <p className="text-xs text-black/60 dark:text-white/60">
+            <p className="text-xs text-text-subtle">
               We store only an approximate point for your city to find nearby
               buddies. Your exact location is never saved or shared.
             </p>
@@ -146,17 +148,17 @@ export default function OnboardingPage() {
             <button
               type="button"
               onClick={() => setStep((s) => s - 1)}
-              className="w-full rounded-lg border border-black/15 px-4 py-2.5 text-sm font-semibold transition hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
+              className="w-full rounded-full border border-[#c2c8c0] px-4 py-2.5 text-sm font-bold text-brand-teal transition hover:border-brand-teal hover:bg-surface-alt"
             >
               Back
             </button>
           )}
           {step < STEPS.length - 1 ? (
-            <Button type="button" onClick={() => setStep((s) => s + 1)}>
+            <Button variant="coral" type="button" onClick={() => setStep((s) => s + 1)}>
               Continue
             </Button>
           ) : (
-            <Button type="submit" loading={loading}>
+            <Button variant="coral" type="submit" loading={loading}>
               Finish
             </Button>
           )}

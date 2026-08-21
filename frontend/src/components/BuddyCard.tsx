@@ -3,29 +3,50 @@
 import { useState } from "react";
 
 import { ApiError } from "@/lib/api";
-import {
-  avatarTint,
-  BUDGET_STYLE_LABELS,
-  BuddyCandidate,
-  initials,
-  sendConnectionRequest,
-} from "@/lib/buddies";
+import { BuddyCandidate, initials, sendConnectionRequest } from "@/lib/buddies";
+
+/** Lucide `map-pin`, inlined — matches the `heart` icon already inlined on /discover. */
+function MapPin({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 24 24"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+    >
+      <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+      <circle cx="12" cy="10" r="3" />
+    </svg>
+  );
+}
 
 /**
  * One ranked candidate.
  *
  * The only location shown is `area_label` and the coarse `distance_bucket` the
  * API sent — there is no coordinate to render and none is requested.
+ *
+ * `index` is the card's rank in the results (0 = best match): it drives the
+ * coral/teal split between the top card and the rest, and alternates the
+ * avatar fill so a page of cards doesn't read as one flat colour.
  */
 export function BuddyCard({
   candidate,
+  index,
   onConnected,
 }: {
   candidate: BuddyCandidate;
+  index: number;
   onConnected?: (candidate: BuddyCandidate) => void;
 }) {
   const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
   const [error, setError] = useState<string | null>(null);
+
+  const isTop = index === 0;
+  const accent = isTop ? "text-brand-coral" : "text-brand-teal";
 
   const connect = async () => {
     setState("sending");
@@ -47,43 +68,39 @@ export function BuddyCard({
   };
 
   return (
-    <article className="card group flex flex-col overflow-hidden">
-      {/* Gradient banner with a floating match badge (MMT-style). */}
-      <div className="brand-gradient relative h-16">
-        <span className="absolute right-3 top-3 rounded-full bg-white/95 px-2.5 py-1 text-xs font-bold text-indigo-700 shadow-sm">
-          {candidate.score}% match
+    <article className="flex flex-col gap-3.5 rounded-[20px] border border-line bg-surface p-5">
+      <header className="flex items-center gap-3.5">
+        <span
+          aria-hidden="true"
+          className={`grid h-[58px] w-[58px] shrink-0 place-items-center rounded-full font-serif text-xl font-bold ${
+            index % 2 === 0
+              ? "bg-brand-teal text-background"
+              : "bg-brand-coral text-white"
+          }`}
+        >
+          {initials(candidate.display_name)}
         </span>
-      </div>
-
-      <div className="relative -mt-8 flex flex-1 flex-col gap-4 px-4 pb-4">
-        <header className="flex items-end gap-3">
-          <span
-            aria-hidden="true"
-            className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full text-lg font-bold shadow-md ring-4 ring-white ${avatarTint(
-              candidate.supabase_user_id,
-            )}`}
-          >
-            {initials(candidate.display_name)}
-          </span>
-          <div className="min-w-0 flex-1 pb-1">
-            <h3 className="truncate text-base font-bold">{candidate.display_name}</h3>
-            <p className="truncate text-sm text-black/60 dark:text-white/60">
-              📍 {candidate.area_label || "Area not set"}
-              {" · "}
-              {candidate.distance_bucket}
-            </p>
-            <p className="mt-0.5 text-xs text-black/60 dark:text-white/60">
-              {[
-                candidate.age_band,
-                BUDGET_STYLE_LABELS[candidate.budget_style] ?? null,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </p>
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate font-serif text-xl text-brand-teal">
+            {candidate.display_name}
+          </h3>
+          <p className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-text-subtle">
+            <MapPin className="h-3.5 w-3.5 shrink-0" />
+            {candidate.area_label || "Area not set"} · {candidate.distance_bucket}
+          </p>
+        </div>
+        <div className="shrink-0 text-right">
+          <div className={`font-serif text-[30px] leading-none ${accent}`}>
+            {candidate.score}
+            <span className="text-[15px]">%</span>
           </div>
-        </header>
+          <div className="text-[10px] uppercase tracking-wider text-text-subtle">
+            match
+          </div>
+        </div>
+      </header>
 
-        <ScoreBar score={candidate.score} name={candidate.display_name} />
+      <ScoreBar score={candidate.score} isTop={isTop} name={candidate.display_name} />
 
       {candidate.explanation.length > 0 && (
         <ul className="flex flex-wrap gap-1.5">
@@ -93,7 +110,11 @@ export function BuddyCard({
               title={`Contributes ${reason.contribution.toFixed(0)} of ${
                 candidate.score
               } points`}
-              className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300"
+              className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${
+                reason.component === "B"
+                  ? "bg-brand-coral-tint text-brand-coral-ink"
+                  : "bg-surface-alt text-brand-teal"
+              }`}
             >
               {reason.label}
             </li>
@@ -101,15 +122,9 @@ export function BuddyCard({
         </ul>
       )}
 
-      {candidate.interests.length > 0 && (
-        <p className="text-xs capitalize text-black/60 dark:text-white/60">
-          {candidate.interests.slice(0, 5).join(" · ")}
-        </p>
-      )}
-
       <div className="mt-auto space-y-2">
         {error && (
-          <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+          <p role="alert" className="text-xs text-brand-coral-ink">
             {error}
           </p>
         )}
@@ -117,7 +132,11 @@ export function BuddyCard({
           type="button"
           onClick={connect}
           disabled={state !== "idle"}
-          className="inline-flex w-full items-center justify-center rounded-full bg-gradient-to-r from-indigo-600 to-indigo-500 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-indigo-600/25 transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:cursor-not-allowed disabled:opacity-60"
+          className={`mt-0.5 w-full rounded-full py-2.5 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+            isTop
+              ? "bg-brand-teal text-background hover:brightness-90"
+              : "border border-[#c2c8c0] text-brand-teal hover:border-brand-teal"
+          }`}
         >
           {state === "sent"
             ? "✓ Request sent"
@@ -125,7 +144,6 @@ export function BuddyCard({
               ? "Sending…"
               : "Connect"}
         </button>
-      </div>
       </div>
     </article>
   );
@@ -137,26 +155,30 @@ export function BuddyCard({
  * Rendered as a meter rather than a progress bar: it is a measurement within a
  * known range, not the progress of a task.
  */
-function ScoreBar({ score, name }: { score: number; name: string }) {
+function ScoreBar({
+  score,
+  isTop,
+  name,
+}: {
+  score: number;
+  isTop: boolean;
+  name: string;
+}) {
   return (
-    <div className="space-y-1">
-      <div className="flex items-baseline justify-between text-xs">
-        <span className="font-medium text-black/70 dark:text-white/70">Match</span>
-        <span className="font-semibold tabular-nums">{score}%</span>
-      </div>
+    <div
+      role="meter"
+      aria-valuenow={score}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-label={`Compatibility with ${name}`}
+      className="h-2 w-full overflow-hidden rounded-full bg-line"
+    >
       <div
-        role="meter"
-        aria-valuenow={score}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-label={`Compatibility with ${name}`}
-        className="h-2 w-full overflow-hidden rounded-full bg-black/10 dark:bg-white/15"
-      >
-        <div
-          className="h-full rounded-full bg-gradient-to-r from-indigo-600 to-indigo-400 transition-[width]"
-          style={{ width: `${Math.max(0, Math.min(100, score))}%` }}
-        />
-      </div>
+        className={`h-full rounded-full transition-[width] ${
+          isTop ? "bg-brand-coral" : "bg-brand-teal"
+        }`}
+        style={{ width: `${Math.max(0, Math.min(100, score))}%` }}
+      />
     </div>
   );
 }

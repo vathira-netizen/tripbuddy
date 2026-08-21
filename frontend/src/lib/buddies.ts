@@ -146,6 +146,19 @@ export function avatarTint(seed: string): string {
   return palette[hash % palette.length];
 }
 
+/**
+ * Deterministic teal/coral split for a monogram avatar — used where the same
+ * person's avatar needs to match colour across two separate components (the
+ * conversation list and its thread header), so a per-list index can't be used.
+ */
+export function monogramAccent(seed: string): "teal" | "coral" {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  }
+  return hash % 2 === 0 ? "teal" : "coral";
+}
+
 export const BUDGET_STYLE_LABELS: Record<string, string> = {
   budget: "Budget",
   mid: "Mid-range",

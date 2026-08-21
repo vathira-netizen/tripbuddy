@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -68,17 +69,20 @@ export function Nav() {
   };
 
   return (
-    <nav className="brand-gradient sticky top-0 z-40 shadow-md">
+    <nav className="sticky top-0 z-40 border-b border-[#e2e1d7] bg-background">
       {/* Wraps rather than overflowing: six items do not fit on a 375px
           viewport, and a nav that pushes the page sideways is unusable on a
           phone. */}
       <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
-        <Link
-          href="/discover"
-          className="flex items-center gap-2 text-lg font-extrabold tracking-tight text-white"
-        >
-          <span aria-hidden className="text-xl">✈️</span>
-          Trip<span className="text-brand-amber">Buddy</span>
+        <Link href="/discover" aria-label="TripBuddy — home" className="flex items-center">
+          <Image
+            src="/brand/logo-horizontal.svg"
+            alt="TripBuddy"
+            width={150}
+            height={24}
+            priority
+            className="h-6 w-auto"
+          />
         </Link>
         <div className="flex flex-wrap items-center gap-x-1.5 gap-y-2 text-sm">
           {LINKS.map(({ href, label, badge }) => {
@@ -91,8 +95,8 @@ export function Nav() {
                 aria-current={active ? "page" : undefined}
                 className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 font-medium transition ${
                   active
-                    ? "bg-white text-indigo-700 shadow-sm"
-                    : "text-white/85 hover:bg-white/15 hover:text-white"
+                    ? "bg-brand-coral-ink font-bold text-white"
+                    : "text-text-muted hover:bg-surface-alt hover:text-brand-teal"
                 }`}
               >
                 {label}
@@ -112,7 +116,7 @@ function Badge({ count, label }: { count: number; label: string }) {
       // aria-live so a count arriving from a poll is announced rather than
       // silently changing under a screen-reader user.
       aria-live="polite"
-      className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-indigo-600 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-white"
+      className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-brand-coral-ink px-1.5 py-0.5 text-[11px] font-semibold leading-none text-white"
     >
       {count > 9 ? "9+" : count}
       <span className="sr-only"> unread {label.toLowerCase()}</span>

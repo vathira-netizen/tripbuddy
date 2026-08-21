@@ -88,7 +88,7 @@ export default function BudgetEditor({
   }
 
   const cellInput =
-    "w-full rounded border border-black/15 bg-transparent px-2 py-1 text-sm outline-none focus:border-indigo-500 dark:border-white/20";
+    "w-full rounded border border-line-input bg-white px-2 py-1 text-sm outline-none focus:border-indigo-500 dark:border-white/20";
 
   return (
     <div className="space-y-4">
@@ -265,7 +265,7 @@ export default function BudgetEditor({
         <button
           type="submit"
           disabled={saving}
-          className="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-full bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {saving ? "Adding…" : "Add"}
         </button>

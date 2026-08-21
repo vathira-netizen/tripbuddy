@@ -1,11 +1,32 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 
 import { api } from "@/lib/api";
 import { Destination } from "@/lib/discover";
 import { createTrip, listTrips, Trip } from "@/lib/trips";
+import { FormError, Input, Select } from "@/components/ui";
+
+/** Lucide `arrow-right`, inlined — matches the `heart`/`map-pin` icons already inlined elsewhere. */
+function ArrowRight({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 24 24"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M5 12h14" />
+      <path d="m12 5 7 7-7 7" />
+    </svg>
+  );
+}
 
 export default function TripsPage() {
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -64,87 +85,61 @@ export default function TripsPage() {
     }
   }
 
-  const inputClass =
-    "w-full rounded-xl border border-black/10 bg-white px-3.5 py-2.5 text-sm shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/25";
+  const destById = useMemo(
+    () => Object.fromEntries(destinations.map((d) => [d.id, d])),
+    [destinations],
+  );
 
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 space-y-8 px-4 py-6">
-      <h1 className="text-3xl font-extrabold tracking-tight">Your trips</h1>
+      <h1 className="text-4xl leading-none tracking-tight">Your trips</h1>
 
-      {error && (
-        <p
-          role="alert"
-          className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300"
-        >
-          {error}
-        </p>
-      )}
+      {error && <FormError message={error} />}
 
-      <form onSubmit={handleCreate} className="card space-y-3 p-5">
-        <h2 className="text-base font-bold">Plan a new trip</h2>
-        <div>
-          <label htmlFor="title" className="mb-1 block text-xs text-black/60 dark:text-white/60">
-            Title
-          </label>
-          <input
-            id="title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Goa long weekend"
-            required
-            className={inputClass}
-          />
-        </div>
+      <form
+        onSubmit={handleCreate}
+        className="space-y-3 rounded-[18px] border border-line bg-surface p-5"
+      >
+        <h2 className="font-serif text-xl text-brand-teal">Plan a new trip</h2>
+        <Input
+          label="Title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Goa long weekend"
+          required
+        />
         <div className="grid gap-3 sm:grid-cols-3">
-          <div>
-            <label htmlFor="destination" className="mb-1 block text-xs text-black/60 dark:text-white/60">
-              Destination
-            </label>
-            <select
-              id="destination"
-              value={destination}
-              onChange={(e) => setDestination(e.target.value)}
-              className={inputClass}
-            >
-              <option value="">Anywhere</option>
-              {destinations.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="start" className="mb-1 block text-xs text-black/60 dark:text-white/60">
-              Start
-            </label>
-            <input
-              id="start"
-              type="date"
-              value={startDate}
-              max={endDate || undefined}
-              onChange={(e) => setStartDate(e.target.value)}
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label htmlFor="end" className="mb-1 block text-xs text-black/60 dark:text-white/60">
-              End
-            </label>
-            <input
-              id="end"
-              type="date"
-              value={endDate}
-              min={startDate || undefined}
-              onChange={(e) => setEndDate(e.target.value)}
-              className={inputClass}
-            />
-          </div>
+          <Select
+            label="Destination"
+            value={destination}
+            onChange={(e) => setDestination(e.target.value)}
+          >
+            <option value="">Anywhere</option>
+            {destinations.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
+          </Select>
+          <Input
+            label="Start"
+            type="date"
+            value={startDate}
+            max={endDate || undefined}
+            onChange={(e) => setStartDate(e.target.value)}
+          />
+          <Input
+            label="End"
+            type="date"
+            value={endDate}
+            min={startDate || undefined}
+            onChange={(e) => setEndDate(e.target.value)}
+          />
         </div>
         <button
           type="submit"
           disabled={saving || !title.trim()}
-          className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-indigo-600 to-indigo-500 px-6 py-2.5 text-sm font-bold text-white shadow-md shadow-indigo-600/25 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex items-center justify-center rounded-full bg-brand-coral px-6 py-2.5 text-sm font-bold text-white shadow-sm transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {saving ? "Creating…" : "Create trip"}
         </button>
@@ -152,49 +147,63 @@ export default function TripsPage() {
 
       <section className="space-y-3">
         {loading ? (
-          <p className="text-sm text-black/60 dark:text-white/60">Loading…</p>
+          <p className="text-sm text-text-subtle">Loading…</p>
         ) : trips.length === 0 ? (
-          <p className="text-sm text-black/60 dark:text-white/60">
+          <p className="text-sm text-text-subtle">
             No trips yet — plan your first one above.
           </p>
         ) : (
-          <ul className="grid gap-4 sm:grid-cols-2">
-            {trips.map((trip) => (
-              <li key={trip.id}>
-                <Link
-                  href={`/trips/${trip.id}`}
-                  className="card group block overflow-hidden transition hover:-translate-y-0.5 hover:shadow-lg"
-                >
-                  {/* Gradient banner stands in for a trip photo. */}
-                  <div className="brand-gradient relative flex h-24 items-end p-4">
-                    <span aria-hidden className="absolute right-3 top-2 text-3xl opacity-40">
-                      🏝️
-                    </span>
-                    <h3 className="text-lg font-bold text-white drop-shadow">{trip.title}</h3>
-                  </div>
-                  <div className="flex items-center justify-between gap-3 p-4">
-                    <div className="space-y-1.5">
-                      <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700">
-                        📅 {trip.start_date ?? "Dates TBD"}
-                        {trip.end_date ? ` – ${trip.end_date}` : ""}
-                      </span>
-                      {trip.collaborators.length > 0 && (
-                        <p className="text-xs text-black/60">
-                          👥 {trip.collaborators.length} collaborator
-                          {trip.collaborators.length === 1 ? "" : "s"}
-                        </p>
+          <ul className="grid gap-[18px] sm:grid-cols-2">
+            {trips.map((trip) => {
+              const photo = trip.destination ? destById[trip.destination] : null;
+              return (
+                <li key={trip.id}>
+                  <Link
+                    href={`/trips/${trip.id}`}
+                    className="group block overflow-hidden rounded-[18px] border border-line bg-surface transition hover:-translate-y-0.5"
+                  >
+                    <div className="relative h-24">
+                      {photo ? (
+                        <Image
+                          src={photo.image_url}
+                          alt=""
+                          width={400}
+                          height={200}
+                          unoptimized
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="h-full w-full bg-brand-teal" />
                       )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-brand-teal/75 to-transparent" />
+                      <h3 className="absolute bottom-3 left-4 font-serif text-xl text-white">
+                        {trip.title}
+                      </h3>
                     </div>
-                    <span
-                      aria-hidden
-                      className="grid h-8 w-8 place-items-center rounded-full bg-indigo-50 text-indigo-700 transition group-hover:bg-indigo-600 group-hover:text-white"
-                    >
-                      →
-                    </span>
-                  </div>
-                </Link>
-              </li>
-            ))}
+                    <div className="flex items-center justify-between gap-3 p-4">
+                      <div className="space-y-1.5">
+                        <span className="inline-flex items-center rounded-full bg-surface-alt px-3 py-1 text-xs font-semibold text-brand-teal">
+                          {trip.start_date ?? "Dates TBD"}
+                          {trip.end_date ? ` – ${trip.end_date}` : ""}
+                        </span>
+                        {trip.collaborators.length > 0 && (
+                          <p className="text-xs text-text-subtle">
+                            {trip.collaborators.length} collaborator
+                            {trip.collaborators.length === 1 ? "" : "s"}
+                          </p>
+                        )}
+                      </div>
+                      <span
+                        aria-hidden
+                        className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-full bg-brand-teal text-white transition group-hover:brightness-90"
+                      >
+                        <ArrowRight className="h-4 w-4" />
+                      </span>
+                    </div>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
