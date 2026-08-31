@@ -57,7 +57,10 @@ services:
         value: groq
       - key: LLM_BASE_URL
         value: https://api.groq.com/openai/v1
-      # Pinned explicitly: the code default is llama-3.3-70b-versatile, so leaving this
-      # unset would silently run a different model in production than in dev.
+      # Pinned explicitly so it can't silently drift from the code default.
+      # llama-3.3-70b-versatile (the original pin here) was decommissioned by
+      # Groq — every generate-itinerary call 502'd until this was caught by
+      # a live call against the real API and swapped for a model actually
+      # served by this account.
       - key: LLM_MODEL
-        value: llama-3.3-70b-versatile
+        value: openai/gpt-oss-120b
