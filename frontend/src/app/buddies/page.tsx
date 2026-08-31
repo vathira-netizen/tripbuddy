@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { ChangeEvent, ReactNode } from "react";
 
-import { ApiError } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import {
   BuddyCandidate,
   DEFAULT_RADIUS_KM,
@@ -13,8 +13,10 @@ import {
   RADIUS_OPTIONS,
 } from "@/lib/buddies";
 import { Destination, listDestinations } from "@/lib/discover";
+import type { Profile } from "@/lib/schemas";
 import { AGE_BANDS, GENDERS } from "@/lib/vocab";
 import { BuddyCard } from "@/components/BuddyCard";
+import { FriendsList } from "@/components/FriendsList";
 import { IncomingRequests } from "@/components/IncomingRequests";
 import { FormError, Select } from "@/components/ui";
 
@@ -60,9 +62,11 @@ function BuddiesInner() {
   const gender = params.get("gender") ?? "";
   const ageBand = params.get("age_band") ?? "";
   const destination = params.get("destination") ?? "";
+  const womenOnly = params.get("women_only") === "true";
 
   const [candidates, setCandidates] = useState<BuddyCandidate[]>([]);
   const [destinations, setDestinations] = useState<Destination[]>([]);
+  const [myProfile, setMyProfile] = useState<Profile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [needsArea, setNeedsArea] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -89,6 +93,16 @@ function BuddiesInner() {
       .catch(() => {});
   }, []);
 
+  // Decides whether the "Women-only matches" toggle is even shown — eligibility
+  // mirrors the backend's own check (apps.matching.views.BuddyViewSet.list).
+  useEffect(() => {
+    api
+      .get<Profile>("/api/profile/me/")
+      .then(setMyProfile)
+      .catch(() => {});
+  }, []);
+  const eligibleForWomenOnly = myProfile?.gender === "female" && myProfile?.email_verified;
+
   useEffect(() => {
     let cancelled = false;
 
@@ -102,6 +116,7 @@ function BuddiesInner() {
           gender: gender || undefined,
           ageBand: ageBand || undefined,
           destination: destination ? Number(destination) : undefined,
+          womenOnly: womenOnly || undefined,
         });
         if (!cancelled) setCandidates(page.results);
       } catch (err) {
@@ -123,15 +138,7 @@ function BuddiesInner() {
     return () => {
       cancelled = true;
     };
-  }, [radiusKm, gender, ageBand, destination, refreshKey]);
-
-  const removeCandidate = useCallback((candidate: BuddyCandidate) => {
-    // Once a request is sent they stop being a candidate; drop the card rather
-    // than leave a "Request sent" tile occupying the grid on the next search.
-    setCandidates((current) =>
-      current.filter((c) => c.supabase_user_id !== candidate.supabase_user_id),
-    );
-  }, []);
+  }, [radiusKm, gender, ageBand, destination, womenOnly, refreshKey]);
 
   const sortedDestinations = useMemo(
     () => [...destinations].sort((a, b) => a.name.localeCompare(b.name)),
@@ -209,6 +216,19 @@ function BuddiesInner() {
                 </option>
               ))}
             </Select>
+
+            {eligibleForWomenOnly && (
+              <label className="flex items-center gap-2 text-sm text-brand-teal sm:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={womenOnly}
+                  onChange={(e) =>
+                    setParam({ women_only: e.target.checked ? "true" : null })
+                  }
+                />
+                Women-only matches
+              </label>
+            )}
           </section>
 
           {needsArea && (
@@ -248,11 +268,7 @@ function BuddiesInner() {
                 {candidates.map((candidate, i) => (
                   <li key={candidate.supabase_user_id} className="flex">
                     <div className="flex w-full flex-col">
-                      <BuddyCard
-                        candidate={candidate}
-                        index={i}
-                        onConnected={removeCandidate}
-                      />
+                      <BuddyCard candidate={candidate} index={i} />
                     </div>
                   </li>
                 ))}
@@ -261,8 +277,9 @@ function BuddiesInner() {
           )}
         </div>
 
-        <aside className="order-1 lg:order-2">
+        <aside className="order-1 space-y-4 lg:order-2">
           <IncomingRequests onAnswered={() => setRefreshKey((k) => k + 1)} />
+          <FriendsList />
         </aside>
       </div>
     </main>

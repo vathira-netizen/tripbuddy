@@ -94,6 +94,12 @@ export type Profile = {
   supabase_user_id: string;
   email: string;
   display_name: string;
+  avatar_url: string;
+  bio: string;
+  travel_styles: string[];
+  upi_vpa: string;
+  email_verified: boolean;
+  completeness: { percent: number; missing: string[] };
   age_band: string;
   gender: string;
   languages: string[];

@@ -12,6 +12,9 @@ from pathlib import Path
 
 import environ
 import dj_database_url
+import sys
+import types
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -44,12 +47,12 @@ if _render_host and _render_host not in ALLOWED_HOSTS:
 
 INSTALLED_APPS = [
     "django.contrib.admin",
+    "django.contrib.gis",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "django.contrib.gis",
     "django.contrib.postgres",
     "rest_framework",
     "drf_spectacular",
@@ -61,6 +64,7 @@ INSTALLED_APPS = [
     "apps.trips",
     "apps.budgets",
     "apps.messaging",
+    "apps.moderation",
 ]
 
 MIDDLEWARE = [
@@ -98,12 +102,12 @@ WSGI_APPLICATION = "config.wsgi.application"
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 # Supabase Postgres, configured via DATABASE_URL using the PostGIS backend.
 
+# For local development without PostGIS/GDAL installed, fall back to SQLite.
+# Deployments should use a real PostGIS DATABASE_URL.
 DATABASES = {
     "default": dj_database_url.config(
         env="DATABASE_URL",
-        # Local fallback only; real deployments always set DATABASE_URL to
-        # the Supabase Postgres connection string (see .env.example).
-        default="postgres://postgres:postgres@localhost:5432/tripbuddy",
+        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
         conn_max_age=600,
         engine="django.contrib.gis.db.backends.postgis",
     )
@@ -244,7 +248,7 @@ NOMINATIM_USER_AGENT = env(
 # endpoint, xAI Grok, etc.) with no code change.
 LLM_PROVIDER = env("LLM_PROVIDER", default="groq")
 LLM_BASE_URL = env("LLM_BASE_URL", default="https://api.groq.com/openai/v1")
-LLM_MODEL = env("LLM_MODEL", default="llama-3.3-70b-versatile")
+LLM_MODEL = env("LLM_MODEL", default="openai/gpt-oss-120b")
 GROQ_API_KEY = env("GROQ_API_KEY", default="")
 # Per-request timeout (seconds) for the LLM HTTP call.
 LLM_TIMEOUT = env.int("LLM_TIMEOUT", default=30)

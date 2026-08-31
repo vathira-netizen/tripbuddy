@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { ApiError } from "@/lib/api";
-import { initials, monogramAccent, type Connection } from "@/lib/buddies";
+import { blockTraveller, initials, monogramAccent, type Connection } from "@/lib/buddies";
 import {
   formatMessageTime,
   listMessages,
@@ -13,6 +14,7 @@ import {
   sendMessage,
   subscribeToMessages,
 } from "@/lib/messages";
+import ReportUserDialog from "@/components/ReportUserDialog";
 
 /** Lucide `send`, inlined — matches the other icons already inlined across the redesign. */
 function Send({ className = "" }: { className?: string }) {
@@ -46,6 +48,8 @@ export function MessageThread({ connection }: { connection: Connection }) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [live, setLive] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [showReport, setShowReport] = useState(false);
 
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
@@ -185,16 +189,78 @@ export function MessageThread({ connection }: { connection: Connection }) {
             {other?.area_label || "Area not set"}
           </p>
         </div>
-        <span
-          title={live ? "Receiving messages live" : "Reconnecting…"}
-          className="ml-auto flex items-center gap-1.5 text-xs text-text-subtle"
-        >
+        <div className="ml-auto flex items-center gap-2">
           <span
-            className={`h-2 w-2 shrink-0 rounded-full ${live ? "bg-brand-teal" : "bg-line-input"}`}
-          />
-          {live ? "Live" : "Offline"}
-        </span>
+            title={live ? "Receiving messages live" : "Reconnecting…"}
+            className="flex items-center gap-1.5 text-xs text-text-subtle"
+          >
+            <span
+              className={`h-2 w-2 shrink-0 rounded-full ${live ? "bg-brand-teal" : "bg-line-input"}`}
+            />
+            {live ? "Live" : "Offline"}
+          </span>
+
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-label="Conversation options"
+              aria-expanded={menuOpen}
+              className="grid h-7 w-7 place-items-center rounded-full text-text-subtle hover:bg-surface-alt hover:text-brand-teal"
+            >
+              ⋯
+            </button>
+            {menuOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+                <div className="absolute right-0 top-9 z-20 w-40 overflow-hidden rounded-xl border border-line bg-surface py-1 shadow-lg">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setShowReport(true);
+                    }}
+                    className="block w-full px-3.5 py-2 text-left text-xs font-semibold text-text-subtle hover:bg-surface-alt hover:text-brand-teal"
+                  >
+                    Report {other?.display_name ?? "traveller"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setMenuOpen(false);
+                      if (!other) return;
+                      if (
+                        !window.confirm(
+                          `Block ${other.display_name}? You won't see each other again.`,
+                        )
+                      ) {
+                        return;
+                      }
+                      try {
+                        await blockTraveller(other.supabase_user_id);
+                        toast.success(`Blocked ${other.display_name}`);
+                      } catch {
+                        toast.error("Couldn't block this traveller. Try again.");
+                      }
+                    }}
+                    className="block w-full px-3.5 py-2 text-left text-xs font-semibold text-brand-coral-ink hover:bg-brand-coral-tint"
+                  >
+                    Block {other?.display_name ?? "traveller"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       </header>
+
+      {showReport && other && (
+        <ReportUserDialog
+          supabaseUserId={other.supabase_user_id}
+          displayName={other.display_name}
+          onClose={() => setShowReport(false)}
+        />
+      )}
 
       <div className="flex-1 space-y-2 overflow-y-auto bg-background px-4 py-3">
         {loading && (

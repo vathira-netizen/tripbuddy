@@ -9,6 +9,7 @@ coordinate, an exact distance, or an email.
 
 from rest_framework import serializers
 
+from apps.accounts.badges import compute_badges
 from apps.common.choices import AGE_BAND_ORDER
 
 
@@ -29,6 +30,12 @@ class BuddyCandidateSerializer(serializers.Serializer):
 
     supabase_user_id = serializers.UUIDField(source="profile.supabase_user_id")
     display_name = serializers.CharField(source="profile.display_name")
+    avatar_url = serializers.CharField(source="profile.avatar_url")
+    bio = serializers.CharField(source="profile.bio")
+    travel_styles = serializers.ListField(
+        source="profile.travel_styles", child=serializers.CharField()
+    )
+    badges = serializers.SerializerMethodField()
     age_band = serializers.CharField(source="profile.age_band")
     gender = serializers.CharField(source="profile.gender")
     languages = serializers.ListField(
@@ -46,6 +53,9 @@ class BuddyCandidateSerializer(serializers.Serializer):
     score = serializers.IntegerField()
     explanation = ExplanationSerializer(many=True)
 
+    def get_badges(self, obj) -> list[str]:
+        return compute_badges(obj["profile"])
+
 
 class BuddyFilterSerializer(serializers.Serializer):
     """Validates the ``GET /api/buddies/`` query string.
@@ -61,6 +71,9 @@ class BuddyFilterSerializer(serializers.Serializer):
         choices=[(b, b) for b in AGE_BAND_ORDER], required=False, allow_blank=True
     )
     destination = serializers.IntegerField(required=False, min_value=1)
+    # Restricted to verified female travellers — apps.matching.views enforces
+    # that, not this serializer, which only validates shape.
+    women_only = serializers.BooleanField(required=False, default=False)
 
     def validate_gender(self, value):
         from apps.accounts.models import Profile

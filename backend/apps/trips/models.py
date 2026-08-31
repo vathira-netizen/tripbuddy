@@ -29,6 +29,14 @@ class Trip(models.Model):
     share_token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     is_public = models.BooleanField(default=False)
 
+    # Optional cover shown on the trip list — same shape as Profile.avatar_url,
+    # uploaded to Supabase Storage; Django only ever stores the resulting URL.
+    cover_image_url = models.URLField(blank=True, default="")
+
+    # Owner opt-in: a trip is never publicly joinable by strangers unless this
+    # is explicitly set. See TripJoinRequest for the ask-to-join flow it gates.
+    is_open_to_join = models.BooleanField(default=False)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -68,6 +76,39 @@ class TripCollaborator(models.Model):
 
     def __str__(self):
         return f"{self.user_id} on {self.trip_id} ({self.role})"
+
+
+class TripJoinRequest(models.Model):
+    """A stranger asking to join an ``is_open_to_join`` trip.
+
+    Mirrors ``apps.connections.models.Connection``'s pending/accepted/declined
+    state machine. Accepting creates a TripCollaborator (see the join-requests
+    accept action in views.py) so the same itinerary/budget permissions apply
+    immediately — it does not by itself create a buddy Connection.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        ACCEPTED = "accepted", "Accepted"
+        DECLINED = "declined", "Declined"
+
+    trip = models.ForeignKey(
+        Trip, on_delete=models.CASCADE, related_name="join_requests"
+    )
+    requester = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="trip_join_requests"
+    )
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    message = models.CharField(max_length=280, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [("trip", "requester")]
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.requester_id} -> trip {self.trip_id} ({self.status})"
 
 
 class ItineraryItem(models.Model):

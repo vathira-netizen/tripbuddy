@@ -13,7 +13,8 @@ const HIDDEN = ["/", "/login", "/register", "/reset-password", "/update-password
 const LINKS = [
   { href: "/discover", label: "Discover" },
   { href: "/trips", label: "Trips" },
-  { href: "/buddies", label: "Buddies", badge: "requests" as const },
+  { href: "/buddies", label: "Buddies" },
+  { href: "/connections", label: "Requests", badge: "requests" as const },
   { href: "/messages", label: "Messages", badge: "messages" as const },
   { href: "/profile", label: "Profile" },
 ];
@@ -69,7 +70,7 @@ export function Nav() {
   };
 
   return (
-    <nav className="sticky top-0 z-40 border-b border-[#e2e1d7] bg-background">
+    <nav className="sticky top-0 z-40 border-b border-[#e2e1d7] bg-background print:hidden">
       {/* Wraps rather than overflowing: six items do not fit on a 375px
           viewport, and a nav that pushes the page sideways is unusable on a
           phone. */}

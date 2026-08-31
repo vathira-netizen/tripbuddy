@@ -103,6 +103,49 @@ def test_budget_summary_shape(client):
 
 
 @pytest.mark.django_db
+def test_budget_summary_includes_member_names(client):
+    trip_id = client.post("/api/trips/", {"title": "Goa run"}, format="json").data["id"]
+    resp = client.get(f"/api/trips/{trip_id}/budget-summary/")
+    assert resp.status_code == 200
+
+    trip = Trip.objects.get(pk=trip_id)
+    members = resp.data["members"]
+    assert str(trip.owner_id) in members
+    assert members[str(trip.owner_id)]["display_name"]
+    assert members[str(trip.owner_id)]["is_owner"] is True
+
+
+@pytest.mark.django_db
+def test_budget_summary_includes_settlements_and_is_me(client):
+    trip_id = client.post("/api/trips/", {"title": "Goa run"}, format="json").data["id"]
+    trip = Trip.objects.get(pk=trip_id)
+
+    other = APIClient()
+    other.credentials(HTTP_AUTHORIZATION=f"Bearer {make_token(email='other@example.com')}")
+    other_id = other.get("/api/profile/me/").data["supabase_user_id"]
+    other_user = Profile.objects.get(supabase_user_id=other_id).user
+    TripCollaborator.objects.create(trip=trip, user=other_user)
+
+    client.post(
+        "/api/budget-items/",
+        {"trip": trip_id, "category": "Stay", "label": "Hotel", "amount": "1000", "payer": trip.owner_id},
+        format="json",
+    )
+
+    resp = client.get(f"/api/trips/{trip_id}/budget-summary/")
+    assert resp.status_code == 200
+    settlements = resp.data["settlements"]
+    assert len(settlements) == 1
+    assert settlements[0]["amount"] == Decimal("500.00")
+    assert settlements[0]["to_user"] == trip.owner_id
+
+    members = resp.data["members"]
+    assert members[str(trip.owner_id)]["is_me"] is True
+    assert members[str(other_user.pk)]["is_me"] is False
+    assert "upi_vpa" in members[str(trip.owner_id)]
+
+
+@pytest.mark.django_db
 def test_budget_summary_requires_trip_membership(client):
     other = APIClient()
     other.credentials(HTTP_AUTHORIZATION=f"Bearer {make_token(email='other@example.com')}")
@@ -326,6 +369,22 @@ def test_share_link_public_then_revoked(client):
 
 
 @pytest.mark.django_db
+def test_is_owner_flag_reflects_requesting_user(settings_secret):
+    owner_sub, friend_sub = str(uuid.uuid4()), str(uuid.uuid4())
+    owner = authed_client(owner_sub, "owner@example.com")
+    friend = authed_client(friend_sub, "friend@example.com")
+    friend.get("/api/trips/")  # create the friend's Profile
+    trip_id = owner.post("/api/trips/", {"title": "Shared"}, format="json").data["id"]
+    _connect(owner_sub, friend_sub)
+    owner.post(
+        f"/api/trips/{trip_id}/invite/", {"supabase_user_id": friend_sub}, format="json"
+    )
+
+    assert owner.get(f"/api/trips/{trip_id}/").data["is_owner"] is True
+    assert friend.get(f"/api/trips/{trip_id}/").data["is_owner"] is False
+
+
+@pytest.mark.django_db
 def test_only_owner_can_share(settings_secret):
     owner_sub, friend_sub = str(uuid.uuid4()), str(uuid.uuid4())
     owner = authed_client(owner_sub, "owner@example.com")
@@ -340,6 +399,141 @@ def test_only_owner_can_share(settings_secret):
     # Collaborator can read the trip but cannot publish it.
     assert friend.post(f"/api/trips/{trip_id}/share/").status_code == 403
     assert Trip.objects.get(pk=trip_id).is_public is False
+
+
+# --- P4: open to join / join requests / cover photo -------------------------
+
+
+@pytest.mark.django_db
+def test_cover_image_url_is_plain_patch_writable(client):
+    trip_id = client.post("/api/trips/", {"title": "Goa run"}, format="json").data["id"]
+    resp = client.patch(
+        f"/api/trips/{trip_id}/", {"cover_image_url": "https://example.com/c.jpg"}, format="json"
+    )
+    assert resp.status_code == 200
+    assert resp.data["cover_image_url"] == "https://example.com/c.jpg"
+
+
+@pytest.mark.django_db
+def test_is_open_to_join_ignored_on_plain_patch(client):
+    # Same public-exposure risk as is_public: not settable via a plain PATCH,
+    # only through the dedicated owner-gated actions below.
+    trip_id = client.post("/api/trips/", {"title": "Goa run"}, format="json").data["id"]
+    resp = client.patch(f"/api/trips/{trip_id}/", {"is_open_to_join": True}, format="json")
+    assert resp.status_code == 200
+    assert Trip.objects.get(pk=trip_id).is_open_to_join is False
+
+
+@pytest.mark.django_db
+def test_only_owner_can_open_trip_to_join(settings_secret):
+    owner_sub, friend_sub = str(uuid.uuid4()), str(uuid.uuid4())
+    owner = authed_client(owner_sub, "owner@example.com")
+    friend = authed_client(friend_sub, "friend@example.com")
+    friend.get("/api/trips/")
+    trip_id = owner.post("/api/trips/", {"title": "Shared"}, format="json").data["id"]
+    _connect(owner_sub, friend_sub)
+    owner.post(f"/api/trips/{trip_id}/invite/", {"supabase_user_id": friend_sub}, format="json")
+
+    assert friend.post(f"/api/trips/{trip_id}/open-to-join/").status_code == 403
+
+    resp = owner.post(f"/api/trips/{trip_id}/open-to-join/")
+    assert resp.status_code == 200
+    assert resp.data["is_open_to_join"] is True
+
+
+@pytest.mark.django_db
+def test_open_trips_lists_only_opted_in_trips_for_a_destination(settings_secret):
+    from apps.destinations.models import Destination
+    from django.contrib.gis.geos import Point
+
+    dest = Destination.objects.create(
+        name="Goa", slug="goa-open-trips", point=Point(74.1, 15.3, srid=4326),
+        avg_daily_budget=1500, budget_tier="budget",
+    )
+    owner = authed_client(str(uuid.uuid4()), "owner@example.com")
+    open_trip = owner.post(
+        "/api/trips/", {"title": "Open one", "destination": dest.id}, format="json"
+    ).data["id"]
+    owner.post(f"/api/trips/{open_trip}/open-to-join/")
+    owner.post("/api/trips/", {"title": "Closed one", "destination": dest.id}, format="json")
+
+    stranger = authed_client(str(uuid.uuid4()), "stranger@example.com")
+    resp = stranger.get(f"/api/trips/open/?destination={dest.id}")
+    assert resp.status_code == 200
+    assert [t["title"] for t in resp.data] == ["Open one"]
+    # Narrow shape: no budget/share fields leaked to a non-member.
+    assert set(resp.data[0]) == {
+        "id", "title", "start_date", "end_date", "nights",
+        "owner_name", "owner_avatar_url", "collaborator_count",
+    }
+
+
+@pytest.mark.django_db
+def test_join_request_accept_adds_collaborator(settings_secret):
+    owner = authed_client(str(uuid.uuid4()), "owner@example.com")
+    trip_id = owner.post("/api/trips/", {"title": "Open trip"}, format="json").data["id"]
+    owner.post(f"/api/trips/{trip_id}/open-to-join/")
+
+    stranger_sub = str(uuid.uuid4())
+    stranger = authed_client(stranger_sub, "stranger@example.com")
+    created = stranger.post(
+        "/api/trip-join-requests/", {"trip": trip_id, "message": "Can I come?"}, format="json"
+    )
+    assert created.status_code == 201
+    request_id = created.data["id"]
+
+    # Only the owner may accept.
+    assert stranger.post(f"/api/trip-join-requests/{request_id}/accept/").status_code == 403
+
+    resp = owner.post(f"/api/trip-join-requests/{request_id}/accept/")
+    assert resp.status_code == 200
+    assert resp.data["status"] == "accepted"
+
+    stranger_user = Profile.objects.get(supabase_user_id=stranger_sub).user
+    assert TripCollaborator.objects.filter(trip_id=trip_id, user=stranger_user).exists()
+
+    # Now a member — the itinerary board works for them.
+    assert stranger.get(f"/api/trips/{trip_id}/").status_code == 200
+
+
+@pytest.mark.django_db
+def test_join_request_decline_does_not_add_collaborator(settings_secret):
+    owner = authed_client(str(uuid.uuid4()), "owner@example.com")
+    trip_id = owner.post("/api/trips/", {"title": "Open trip"}, format="json").data["id"]
+    owner.post(f"/api/trips/{trip_id}/open-to-join/")
+
+    stranger = authed_client(str(uuid.uuid4()), "stranger@example.com")
+    request_id = stranger.post(
+        "/api/trip-join-requests/", {"trip": trip_id}, format="json"
+    ).data["id"]
+
+    resp = owner.post(f"/api/trip-join-requests/{request_id}/decline/")
+    assert resp.status_code == 200
+    assert resp.data["status"] == "declined"
+    assert TripCollaborator.objects.filter(trip_id=trip_id).count() == 0
+    assert stranger.get(f"/api/trips/{trip_id}/").status_code == 404
+
+
+@pytest.mark.django_db
+def test_cannot_request_to_join_a_closed_trip(settings_secret):
+    owner = authed_client(str(uuid.uuid4()), "owner@example.com")
+    trip_id = owner.post("/api/trips/", {"title": "Closed trip"}, format="json").data["id"]
+
+    stranger = authed_client(str(uuid.uuid4()), "stranger@example.com")
+    resp = stranger.post("/api/trip-join-requests/", {"trip": trip_id}, format="json")
+    assert resp.status_code == 400
+
+
+@pytest.mark.django_db
+def test_duplicate_join_request_is_409(settings_secret):
+    owner = authed_client(str(uuid.uuid4()), "owner@example.com")
+    trip_id = owner.post("/api/trips/", {"title": "Open trip"}, format="json").data["id"]
+    owner.post(f"/api/trips/{trip_id}/open-to-join/")
+
+    stranger = authed_client(str(uuid.uuid4()), "stranger@example.com")
+    stranger.post("/api/trip-join-requests/", {"trip": trip_id}, format="json")
+    second = stranger.post("/api/trip-join-requests/", {"trip": trip_id}, format="json")
+    assert second.status_code == 409
 
 
 # --- Phase 6: AI itinerary generation ---------------------------------------
@@ -395,7 +589,7 @@ def test_generate_itinerary_flags_over_budget(client, monkeypatch):
 def test_generate_itinerary_503_when_unconfigured(client, settings):
     # No monkeypatch: an empty key makes call_llm raise LLMConfigError, still
     # with no network touched.
-    settings.GROK_API_KEY = ""
+    settings.GROQ_API_KEY = ""
     trip_id = client.post("/api/trips/", {"title": "Goa"}, format="json").data["id"]
     resp = client.post(f"/api/trips/{trip_id}/generate-itinerary/", {}, format="json")
     assert resp.status_code == 503

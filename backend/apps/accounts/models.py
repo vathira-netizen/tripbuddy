@@ -26,6 +26,20 @@ class Profile(models.Model):
     supabase_user_id = models.UUIDField(unique=True, default=uuid.uuid4, editable=False)
 
     display_name = models.CharField(max_length=60, blank=True)
+    # Public URL of the file in the Supabase Storage `avatars` bucket. Uploaded
+    # directly from the browser via the Supabase client; Django only stores the
+    # resulting URL, never handles the file itself.
+    avatar_url = models.URLField(blank=True, default="")
+    bio = models.CharField(max_length=280, blank=True)
+    travel_styles = ArrayField(models.CharField(max_length=20), default=list, blank=True)
+    # UPI virtual payment address (e.g. "name@okbank") for the group settle-up
+    # feature — shown only to fellow trip members who owe this person money,
+    # never broadcast publicly. Format varies by bank/PSP, so validation is
+    # deliberately loose (see ProfileSerializer.validate_upi_vpa).
+    upi_vpa = models.CharField(max_length=80, blank=True)
+    # Synced opportunistically from the Supabase JWT's `email_verified` claim on
+    # each authenticated request — see apps.accounts.authentication.
+    email_verified = models.BooleanField(default=False)
     age_band = models.CharField(max_length=10, choices=AgeBand.choices, blank=True)
     gender = models.CharField(max_length=20, choices=Gender.choices, blank=True)
     languages = ArrayField(models.CharField(max_length=32), default=list, blank=True)

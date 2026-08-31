@@ -403,6 +403,55 @@ def test_buddies_requires_authentication():
     assert APIClient().get("/api/buddies/").status_code == 401
 
 
+# --- women_only ---------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_women_only_requires_verified_female_requester(settings_secret):
+    _, woman = make_traveller("woman", at=BLR, gender="female")
+    woman.email_verified = True
+    woman.save()
+    make_traveller("man", at=MYSURU, gender="male")
+
+    resp = client_for(woman, settings_secret).get("/api/buddies/?radius_km=500&women_only=true")
+    assert resp.status_code == 200
+
+
+@pytest.mark.django_db
+def test_women_only_rejects_unverified_female(settings_secret):
+    _, woman = make_traveller("unverified-woman", at=BLR, gender="female")
+    assert woman.email_verified is False
+
+    resp = client_for(woman, settings_secret).get("/api/buddies/?women_only=true")
+    assert resp.status_code == 403
+
+
+@pytest.mark.django_db
+def test_women_only_rejects_male_requester(settings_secret):
+    _, man = make_traveller("verified-man", at=BLR, gender="male")
+    man.email_verified = True
+    man.save()
+
+    resp = client_for(man, settings_secret).get("/api/buddies/?women_only=true")
+    assert resp.status_code == 403
+
+
+@pytest.mark.django_db
+def test_women_only_filters_out_male_candidates(settings_secret):
+    _, woman = make_traveller("host", at=BLR, gender="female")
+    woman.email_verified = True
+    woman.save()
+    make_traveller("nearby-man", at=BLR, gender="male")
+    make_traveller("nearby-woman", at=BLR, gender="female")
+
+    resp = client_for(woman, settings_secret).get(
+        "/api/buddies/?radius_km=500&women_only=true"
+    )
+    assert resp.status_code == 200
+    names = {c["display_name"] for c in resp.data["results"]}
+    assert names == {"Nearby-Woman"}
+
+
 @pytest.mark.django_db
 def test_buddies_lists_nearby_candidates_ranked(settings_secret):
     me_user, me = make_traveller("me", at=BLR)
@@ -439,6 +488,10 @@ def test_buddy_payload_never_exposes_coordinates(settings_secret):
     assert set(candidate) == {
         "supabase_user_id",
         "display_name",
+        "avatar_url",
+        "bio",
+        "travel_styles",
+        "badges",
         "age_band",
         "gender",
         "languages",

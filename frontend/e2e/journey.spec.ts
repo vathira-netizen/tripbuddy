@@ -295,7 +295,7 @@ test.describe.serial("new traveller journey", () => {
 
     expect(leaked).not.toContain(be.SUPABASE_SERVICE_ROLE_KEY);
     if (be.SUPABASE_JWT_SECRET) expect(leaked).not.toContain(be.SUPABASE_JWT_SECRET);
-    if (be.GROK_API_KEY) expect(leaked).not.toContain(be.GROK_API_KEY);
+    if (be.GROQ_API_KEY) expect(leaked).not.toContain(be.GROQ_API_KEY);
     expect(leaked).not.toContain("service_role");
   });
 });

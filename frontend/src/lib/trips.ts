@@ -24,13 +24,42 @@ export interface Trip {
   owner: number;
   title: string;
   destination: number | null;
+  destination_name: string | null;
   start_date: string | null;
   end_date: string | null;
   target_amount: string | null;
   nights: number;
   is_public: boolean;
   share_token: string;
+  cover_image_url: string;
+  /** Read-only here — toggled only through openTripToJoin/closeTripToJoin. */
+  is_open_to_join: boolean;
   collaborators: Collaborator[];
+  is_owner: boolean;
+  created_at: string;
+}
+
+/** A trip browsed from its destination page by a non-member — narrow shape. */
+export interface OpenTrip {
+  id: number;
+  title: string;
+  start_date: string | null;
+  end_date: string | null;
+  nights: number;
+  owner_name: string;
+  owner_avatar_url: string;
+  collaborator_count: number;
+}
+
+export type JoinRequestStatus = "pending" | "accepted" | "declined";
+
+export interface TripJoinRequest {
+  id: number;
+  trip: number;
+  requester_name: string;
+  requester_avatar_url: string;
+  status: JoinRequestStatus;
+  message: string;
   created_at: string;
 }
 
@@ -75,6 +104,7 @@ export interface TripInput {
   start_date?: string | null;
   end_date?: string | null;
   target_amount?: string | null;
+  cover_image_url?: string | null;
 }
 
 export const createTrip = (input: TripInput) =>
@@ -130,6 +160,38 @@ export const unshareTrip = (tripId: number) =>
 /** No auth needed; works for logged-out viewers of a public trip. */
 export const getSharedTrip = (token: string) =>
   api.get<SharedTrip>(`/api/share/${token}/`);
+
+// --- Open to join / join requests (P4) ---------------------------------------
+
+export const openTripToJoin = (tripId: number) =>
+  api.post<Trip>(`/api/trips/${tripId}/open-to-join/`, {});
+
+export const closeTripToJoin = (tripId: number) =>
+  api.post<Trip>(`/api/trips/${tripId}/close-to-join/`, {});
+
+/** Trips open to join, optionally filtered to one destination. */
+export const listOpenTrips = (destinationId?: number) =>
+  api.get<OpenTrip[]>(
+    `/api/trips/open/${destinationId ? `?destination=${destinationId}` : ""}`,
+  );
+
+export const requestToJoinTrip = (tripId: number, message?: string) =>
+  api.post<TripJoinRequest>("/api/trip-join-requests/", {
+    trip: tripId,
+    message: message ?? "",
+  });
+
+/** Every join request visible to you — sent by you, or received as a trip owner. */
+export const listJoinRequests = () =>
+  api
+    .get<Page<TripJoinRequest>>("/api/trip-join-requests/")
+    .then((p) => p.results);
+
+export const acceptJoinRequest = (id: number) =>
+  api.post<TripJoinRequest>(`/api/trip-join-requests/${id}/accept/`, {});
+
+export const declineJoinRequest = (id: number) =>
+  api.post<TripJoinRequest>(`/api/trip-join-requests/${id}/decline/`, {});
 
 // --- AI itinerary generation (Phase 6) --------------------------------------
 // The Grok key lives only on the Django server; the browser only ever sees the

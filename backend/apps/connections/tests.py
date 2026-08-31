@@ -298,6 +298,105 @@ def test_only_the_blocker_may_unblock(pair):
     assert response.data["status"] == "declined"
 
 
+# --- blocking directly (no prior connection) --------------------------------
+
+
+@pytest.mark.django_db
+def test_block_user_with_no_prior_connection_creates_a_blocked_row(pair):
+    (alice_user, alice), (bob_user, bob) = pair
+    assert not Connection.objects.exists()
+
+    resp = client_for(alice).post(
+        "/api/connections/block-user/",
+        {"supabase_user_id": str(bob.supabase_user_id)},
+        format="json",
+    )
+    assert resp.status_code == 200
+    assert resp.data["status"] == "blocked"
+
+    connection = Connection.objects.get()
+    assert connection.status == Connection.Status.BLOCKED
+    assert connection.blocked_by_id == alice_user.pk
+    assert {connection.requester_id, connection.addressee_id} == {
+        alice_user.pk,
+        bob_user.pk,
+    }
+
+
+@pytest.mark.django_db
+def test_block_user_updates_an_existing_pending_connection(pair):
+    (alice_user, alice), (bob_user, bob) = pair
+    Connection.objects.create(requester=bob_user, addressee=alice_user)  # Bob asked first
+
+    resp = client_for(alice).post(
+        "/api/connections/block-user/",
+        {"supabase_user_id": str(bob.supabase_user_id)},
+        format="json",
+    )
+    assert resp.status_code == 200
+    assert Connection.objects.count() == 1  # updated, not duplicated
+    connection = Connection.objects.get()
+    assert connection.status == Connection.Status.BLOCKED
+    assert connection.blocked_by_id == alice_user.pk
+
+
+@pytest.mark.django_db
+def test_blocked_traveller_is_excluded_from_buddy_matching(pair, settings_secret):
+    # make_traveller already onboards both with a shared BLR-area point.
+    (alice_user, alice), (bob_user, bob) = pair
+
+    before = client_for(alice).get("/api/buddies/?radius_km=500")
+    assert any(
+        c["supabase_user_id"] == str(bob.supabase_user_id) for c in before.data["results"]
+    )
+
+    client_for(alice).post(
+        "/api/connections/block-user/",
+        {"supabase_user_id": str(bob.supabase_user_id)},
+        format="json",
+    )
+
+    after = client_for(alice).get("/api/buddies/?radius_km=500")
+    assert not any(
+        c["supabase_user_id"] == str(bob.supabase_user_id) for c in after.data["results"]
+    )
+
+
+# --- canceling a sent request ----------------------------------------------
+
+
+@pytest.mark.django_db
+def test_requester_can_cancel_a_pending_request(pair):
+    (alice_user, alice), (bob_user, bob) = pair
+    connection = Connection.objects.create(requester=alice_user, addressee=bob_user)
+
+    response = client_for(alice).delete(f"/api/connections/{connection.pk}/")
+    assert response.status_code == 204
+    assert not Connection.objects.filter(pk=connection.pk).exists()
+
+
+@pytest.mark.django_db
+def test_addressee_cannot_cancel_a_request_sent_to_them(pair):
+    (alice_user, alice), (bob_user, bob) = pair
+    connection = Connection.objects.create(requester=alice_user, addressee=bob_user)
+
+    response = client_for(bob).delete(f"/api/connections/{connection.pk}/")
+    assert response.status_code == 403
+    assert Connection.objects.filter(pk=connection.pk).exists()
+
+
+@pytest.mark.django_db
+def test_cannot_cancel_an_already_answered_request(pair):
+    (alice_user, alice), (bob_user, bob) = pair
+    connection = Connection.objects.create(
+        requester=alice_user, addressee=bob_user, status=Connection.Status.ACCEPTED
+    )
+
+    response = client_for(alice).delete(f"/api/connections/{connection.pk}/")
+    assert response.status_code == 400
+    assert Connection.objects.filter(pk=connection.pk).exists()
+
+
 # --- listing --------------------------------------------------------------
 
 
@@ -346,6 +445,10 @@ def test_connection_payload_carries_no_coordinates(pair):
     assert set(response.data["results"][0]["other"]) == {
         "supabase_user_id",
         "display_name",
+        "avatar_url",
+        "bio",
+        "travel_styles",
+        "badges",
         "age_band",
         "gender",
         "languages",

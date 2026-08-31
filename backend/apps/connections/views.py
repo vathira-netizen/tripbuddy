@@ -65,6 +65,7 @@ def can_message(user, other):
 class ConnectionViewSet(
     mixins.ListModelMixin,
     mixins.RetrieveModelMixin,
+    mixins.DestroyModelMixin,
     viewsets.GenericViewSet,
 ):
     """The requesting user's connections, in both directions.
@@ -158,6 +159,58 @@ class ConnectionViewSet(
         return Response(
             ConnectionSerializer(connection, context={"request": request}).data,
             status=status.HTTP_201_CREATED,
+        )
+
+    def perform_destroy(self, instance):
+        """``DELETE /api/connections/<id>/`` — the requester withdraws it.
+
+        Only the sender may cancel, and only before it's been answered:
+        answering is the addressee's call (accept/decline), not something the
+        sender can pre-empt by deleting the row out from under them.
+        """
+        if instance.status != Connection.Status.PENDING:
+            raise ValidationError(
+                {"status": f"This request is already {instance.status}."}
+            )
+        if instance.requester_id != self.request.user.pk:
+            raise PermissionDenied("Only the sender may cancel this request.")
+        instance.delete()
+
+    @extend_schema(
+        summary="Block a traveller directly, with no prior connection required",
+        description="Unlike the detail `block` action below, this addresses "
+                    "the target by supabase_user_id rather than a connection "
+                    "id — for blocking a stranger straight from their profile "
+                    "or a chat header, where no Connection row exists yet.",
+        request=ConnectionCreateSerializer,
+        responses={200: ConnectionSerializer},
+    )
+    @action(detail=False, methods=["post"], url_path="block-user")
+    def block_user(self, request):
+        serializer = ConnectionCreateSerializer(
+            data=request.data, context={"request": request}
+        )
+        # Runs the same target lookup as create(), but not its "cannot
+        # connect with yourself" framing — blocking yourself is equally
+        # nonsensical, so the same validation error is fine as-is.
+        serializer.is_valid(raise_exception=True)
+        target = serializer.context["target_profile"]
+
+        connection = self._existing_connection(request.user.pk, target.user_id)
+        if connection is None:
+            connection = Connection.objects.create(
+                requester=request.user,
+                addressee=target.user,
+                status=Connection.Status.BLOCKED,
+                blocked_by=request.user,
+            )
+        else:
+            connection.status = Connection.Status.BLOCKED
+            connection.blocked_by = request.user
+            connection.save(update_fields=["status", "blocked_by", "updated_at"])
+
+        return Response(
+            ConnectionSerializer(connection, context={"request": request}).data
         )
 
     @extend_schema(summary="Accept a pending request", request=None,

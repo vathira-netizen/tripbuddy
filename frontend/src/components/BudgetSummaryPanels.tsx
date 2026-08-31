@@ -1,3 +1,4 @@
+import { avatarTint, initials } from "@/lib/buddies";
 import { BUDGET_CATEGORIES, BudgetSummary, formatINR } from "@/lib/budget";
 
 /** Green while within the trip's target_amount, red once spend exceeds it. */
@@ -81,8 +82,10 @@ export function PerDayPanel({ perDay }: { perDay: BudgetSummary["per_day"] }) {
 
 export function PerPersonPanel({
   perPerson,
+  members,
 }: {
   perPerson: BudgetSummary["per_person"];
+  members: BudgetSummary["members"];
 }) {
   const entries = Object.entries(perPerson.per_member);
 
@@ -100,21 +103,47 @@ export function PerPersonPanel({
         Equal share: <span className="font-semibold">{formatINR(perPerson.equal_share)}</span>{" "}
         each
       </p>
-      <ul className="space-y-1 text-sm">
+      <ul className="space-y-2 text-sm">
         {entries.map(([memberId, split]) => {
           const balance = Number(split.balance);
           const settled = balance === 0;
+          const member = members[memberId];
+          const name = member?.display_name || `Traveller #${memberId}`;
           return (
-            <li key={memberId} className="flex items-center justify-between">
-              <span>Traveller #{memberId}</span>
+            <li key={memberId} className="flex items-center justify-between gap-2">
+              <span className="flex min-w-0 items-center gap-2">
+                {member?.avatar_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- small avatar, not worth next/image's overhead here
+                  <img
+                    src={member.avatar_url}
+                    alt=""
+                    className="h-6 w-6 shrink-0 rounded-full object-cover"
+                  />
+                ) : (
+                  <span
+                    aria-hidden="true"
+                    className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-[10px] font-bold ${avatarTint(
+                      memberId,
+                    )}`}
+                  >
+                    {initials(name)}
+                  </span>
+                )}
+                <span className="truncate">
+                  {name}
+                  {member?.is_owner && (
+                    <span className="ml-1 text-xs text-black/40 dark:text-white/40">(owner)</span>
+                  )}
+                </span>
+              </span>
               <span
-                className={
+                className={`shrink-0 ${
                   settled
                     ? "text-black/60 dark:text-white/60"
                     : balance > 0
                       ? "text-green-600"
                       : "text-red-600"
-                }
+                }`}
               >
                 {settled
                   ? "settled up"

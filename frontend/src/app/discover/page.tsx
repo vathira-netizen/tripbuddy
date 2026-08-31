@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 
 import { api } from "@/lib/api";
 import {
@@ -20,6 +21,7 @@ import {
 } from "@/lib/discover";
 import { INTEREST_TAGS } from "@/lib/vocab";
 import { Select, TagPicker } from "@/components/ui";
+import WelcomeWalkthrough from "@/components/WelcomeWalkthrough";
 
 // Leaflet touches window on import, so the map is client-only.
 const DestinationMap = dynamic(() => import("@/components/DestinationMap"), {
@@ -61,6 +63,7 @@ function DiscoverInner() {
     [params],
   );
   const sort = params.get("sort") ?? "budget"; // "budget" | "proximity"
+  const [showWelcome, setShowWelcome] = useState(params.get("welcome") === "1");
 
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [savedByDest, setSavedByDest] = useState<Record<number, number>>({});
@@ -156,9 +159,21 @@ function DiscoverInner() {
       } else {
         const row = await saveDestination(d.id);
         setSavedByDest((prev) => ({ ...prev, [d.id]: row.id }));
+        toast.success("Added to your saved destinations");
       }
     } catch {
-      setSavedByDest((prev) => ({ ...prev, [d.id]: existing ?? -1 }));
+      // Roll back to the pre-click state and let the user know it didn't stick.
+      setSavedByDest((prev) => {
+        const next = { ...prev };
+        if (existing) next[d.id] = existing;
+        else delete next[d.id];
+        return next;
+      });
+      toast.error(
+        existing
+          ? `Couldn't remove ${d.name} from Saved. Try again.`
+          : `Couldn't save ${d.name}. Try again.`,
+      );
     }
   }
 
@@ -326,6 +341,23 @@ function DiscoverInner() {
                     <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-0.5 text-xs font-semibold text-brand-teal shadow-sm backdrop-blur">
                       {TIER_LABELS[d.budget_tier]}
                     </span>
+                    {isSaved && (
+                      <span className="absolute bottom-2.5 left-3 inline-flex items-center gap-1 rounded-full bg-brand-coral px-2.5 py-0.5 text-[11px] font-semibold text-white shadow-sm">
+                        <svg
+                          aria-hidden
+                          viewBox="0 0 24 24"
+                          className="h-3 w-3"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={3}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M20 6 9 17l-5-5" />
+                        </svg>
+                        Saved
+                      </span>
+                    )}
                   </div>
                 </button>
                 <button
@@ -344,7 +376,11 @@ function DiscoverInner() {
 
               <div className="px-4 pb-4 pt-3.5">
                 <div className="flex items-baseline justify-between gap-2">
-                  <h2 className="text-[22px] leading-tight">{d.name}</h2>
+                  <h2 className="text-[22px] leading-tight">
+                    <Link href={`/discover/${d.slug}`} className="hover:underline">
+                      {d.name}
+                    </Link>
+                  </h2>
                   <span className="whitespace-nowrap font-serif text-[19px] text-brand-coral-ink">
                     {formatINR(d.avg_daily_budget)}
                     <span className="font-sans text-[11px] text-text-subtle">/day</span>
@@ -370,6 +406,15 @@ function DiscoverInner() {
           );
         })}
       </ul>
+
+      {showWelcome && (
+        <WelcomeWalkthrough
+          onDismiss={() => {
+            setShowWelcome(false);
+            setParam({ welcome: null });
+          }}
+        />
+      )}
     </main>
   );
 }

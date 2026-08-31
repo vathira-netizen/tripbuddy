@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { ApiError } from "@/lib/api";
 import { formatINR } from "@/lib/discover";
 import { AiDraft, applyItinerary, generateItinerary } from "@/lib/trips";
 import { FormError, Input } from "@/components/ui";
@@ -53,12 +54,17 @@ export default function AiItineraryPanel({
       });
       setDraft(result);
     } catch (err) {
-      const status = (err as { status?: number }).status;
-      setError(
-        status === 503
-          ? "AI generation isn't configured on the server yet."
-          : "Couldn't generate a plan right now. Try again.",
-      );
+      if (err instanceof ApiError && err.status === 503) {
+        setError("AI generation isn't configured on the server yet.");
+      } else if (err instanceof ApiError && err.status === 502) {
+        const detail =
+          typeof err.data === "object" && err.data && "detail" in err.data
+            ? String((err.data as { detail?: unknown }).detail)
+            : null;
+        setError(detail || "The AI service is unavailable right now. Try again.");
+      } else {
+        setError("Couldn't generate a plan right now. Try again.");
+      }
     } finally {
       setGenerating(false);
     }
@@ -102,11 +108,30 @@ export default function AiItineraryPanel({
           type="button"
           onClick={handleGenerate}
           disabled={generating}
-          className="shrink-0 rounded-full bg-brand-coral px-5 py-2 text-sm font-bold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex shrink-0 items-center gap-2 rounded-full bg-brand-coral px-5 py-2 text-sm font-bold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
         >
+          {generating && (
+            <svg
+              aria-hidden
+              viewBox="0 0 24 24"
+              className="h-4 w-4 animate-spin"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={3}
+            >
+              <circle cx="12" cy="12" r="9" strokeOpacity={0.25} />
+              <path d="M21 12a9 9 0 0 0-9-9" strokeLinecap="round" />
+            </svg>
+          )}
           {generating ? "Drafting…" : "Generate"}
         </button>
       </div>
+
+      {generating && (
+        <p role="status" className="text-xs text-text-subtle">
+          Drafting your personalized itinerary with AI…
+        </p>
+      )}
 
       <div className="grid gap-2 sm:grid-cols-3">
         <Input
