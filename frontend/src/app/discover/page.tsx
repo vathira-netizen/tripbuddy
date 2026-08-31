@@ -315,71 +315,90 @@ function DiscoverInner() {
         {destinations.map((d) => {
           const isSaved = d.id in savedByDest;
           const isSelected = selected?.id === d.id;
+          const shownTags = d.interest_tags.slice(0, 3);
+          const extraTags = d.interest_tags.length - shownTags.length;
           return (
             <li
               key={d.id}
-              className={`group overflow-hidden rounded-[18px] border bg-surface transition hover:-translate-y-0.5 ${
+              onMouseEnter={() => setSelected(d)}
+              className={`group relative overflow-hidden rounded-[18px] border bg-surface transition hover:-translate-y-0.5 hover:shadow-lg ${
                 isSelected ? "border-brand-coral ring-1 ring-brand-coral" : "border-line"
               }`}
             >
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setSelected(d)}
-                  className="block w-full text-left"
-                  aria-label={`Focus ${d.name} on the map`}
-                >
-                  <div className="relative h-[150px] w-full overflow-hidden">
-                    <Image
-                      src={d.image_url}
-                      alt={d.name}
-                      width={600}
-                      height={400}
-                      unoptimized
-                      className="h-[150px] w-full object-cover transition duration-300 group-hover:scale-105"
-                    />
-                    <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-0.5 text-xs font-semibold text-brand-teal shadow-sm backdrop-blur">
-                      {TIER_LABELS[d.budget_tier]}
-                    </span>
-                    {isSaved && (
-                      <span className="absolute bottom-2.5 left-3 inline-flex items-center gap-1 rounded-full bg-brand-coral px-2.5 py-0.5 text-[11px] font-semibold text-white shadow-sm">
-                        <svg
-                          aria-hidden
-                          viewBox="0 0 24 24"
-                          className="h-3 w-3"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth={3}
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M20 6 9 17l-5-5" />
-                        </svg>
-                        Saved
-                      </span>
-                    )}
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleSave(d)}
-                  aria-pressed={isSaved}
-                  aria-label={isSaved ? `Unsave ${d.name}` : `Save ${d.name}`}
-                  className="absolute right-3 top-3 grid h-[34px] w-[34px] place-items-center rounded-full bg-white shadow-sm transition hover:scale-110"
-                >
-                  <Heart
-                    filled={isSaved}
-                    className={`h-4 w-4 ${isSaved ? "text-brand-coral" : "text-[#c2c8c0]"}`}
-                  />
-                </button>
-              </div>
+              {/* Stretched link: the whole card navigates to the detail page.
+                  The save button sits above it (relative z-10) so it keeps
+                  its own click instead of triggering the navigation. */}
+              <Link
+                href={`/discover/${d.slug}`}
+                className="absolute inset-0 z-0"
+                aria-label={`View ${d.name}`}
+              />
 
-              <div className="px-4 pb-4 pt-3.5">
+              <div className="relative h-[160px] w-full overflow-hidden">
+                <Image
+                  src={d.image_url}
+                  alt={d.name}
+                  width={600}
+                  height={400}
+                  unoptimized
+                  className="h-[160px] w-full object-cover transition duration-300 group-hover:scale-105"
+                />
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/55 to-transparent" />
+                <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-0.5 text-xs font-semibold text-brand-teal shadow-sm backdrop-blur">
+                  {TIER_LABELS[d.budget_tier]}
+                </span>
+                {d.avg_rating != null && (
+                  <span className="absolute bottom-2.5 left-3 inline-flex items-center gap-1 text-xs font-semibold text-white drop-shadow">
+                    <svg
+                      aria-hidden
+                      viewBox="0 0 24 24"
+                      className="h-3.5 w-3.5"
+                      fill="currentColor"
+                    >
+                      <path d="M12 2 15 9 22 9.5 17 14.5 18.5 22 12 18 5.5 22 7 14.5 2 9.5 9 9 12 2Z" />
+                    </svg>
+                    {d.avg_rating.toFixed(1)}
+                    <span className="font-normal text-white/80">({d.review_count})</span>
+                  </span>
+                )}
+                {isSaved && (
+                  <span className="absolute bottom-2.5 right-3 inline-flex items-center gap-1 rounded-full bg-brand-coral px-2.5 py-0.5 text-[11px] font-semibold text-white shadow-sm">
+                    <svg
+                      aria-hidden
+                      viewBox="0 0 24 24"
+                      className="h-3 w-3"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={3}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                    Saved
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  toggleSave(d);
+                }}
+                aria-pressed={isSaved}
+                aria-label={isSaved ? `Unsave ${d.name}` : `Save ${d.name}`}
+                className="absolute right-3 top-3 z-10 grid h-[34px] w-[34px] place-items-center rounded-full bg-white shadow-sm transition hover:scale-110"
+              >
+                <Heart
+                  filled={isSaved}
+                  className={`h-4 w-4 ${isSaved ? "text-brand-coral" : "text-[#c2c8c0]"}`}
+                />
+              </button>
+
+              <div className="pointer-events-none relative px-4 pb-4 pt-3.5">
                 <div className="flex items-baseline justify-between gap-2">
-                  <h2 className="text-[22px] leading-tight">
-                    <Link href={`/discover/${d.slug}`} className="hover:underline">
-                      {d.name}
-                    </Link>
+                  <h2 className="text-[22px] leading-tight transition-colors group-hover:text-brand-coral-ink">
+                    {d.name}
                   </h2>
                   <span className="whitespace-nowrap font-serif text-[19px] text-brand-coral-ink">
                     {formatINR(d.avg_daily_budget)}
@@ -391,8 +410,8 @@ function DiscoverInner() {
                   {d.distance_km != null && ` · ${d.distance_km} km away`}
                   {d.best_season && ` · Best ${d.best_season}`}
                 </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {d.interest_tags.map((t) => (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {shownTags.map((t) => (
                     <span
                       key={t}
                       className="rounded-full bg-surface-alt px-2.5 py-0.5 text-[11px] capitalize text-brand-teal"
@@ -400,6 +419,24 @@ function DiscoverInner() {
                       {t}
                     </span>
                   ))}
+                  {extraTags > 0 && (
+                    <span className="text-[11px] text-text-subtle">+{extraTags} more</span>
+                  )}
+                  <span className="ml-auto inline-flex items-center gap-1 text-xs font-semibold text-brand-teal opacity-0 transition-opacity group-hover:opacity-100">
+                    Explore
+                    <svg
+                      aria-hidden
+                      viewBox="0 0 24 24"
+                      className="h-3 w-3 transition-transform group-hover:translate-x-0.5"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={2.5}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M5 12h14M12 5l7 7-7 7" />
+                    </svg>
+                  </span>
                 </div>
               </div>
             </li>
