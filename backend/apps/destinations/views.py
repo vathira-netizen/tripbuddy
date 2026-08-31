@@ -9,17 +9,19 @@ what is a dozen lines. All proximity work runs in PostGIS via GeoDjango
 from django.contrib.gis.db.models.functions import Distance
 from django.contrib.gis.geos import Point
 from django.contrib.gis.measure import D
+from django.db.models import Avg, Count
 from rest_framework import mixins, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.filters import OrderingFilter
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.common.permissions import IsOwner
 from apps.common.querysets import is_authenticated
-from apps.destinations.models import Destination, SavedDestination
+from apps.destinations.models import Destination, DestinationReview, SavedDestination
 from apps.destinations.serializers import (
+    DestinationReviewSerializer,
     DestinationSerializer,
     SavedDestinationSerializer,
 )
@@ -39,9 +41,12 @@ class DestinationViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, views
     filter_backends = [OrderingFilter]
     ordering_fields = ["avg_daily_budget", "name"]
     ordering = ["name"]
+    lookup_field = "slug"
 
     def get_queryset(self):
-        qs = Destination.objects.all()
+        qs = Destination.objects.annotate(
+            avg_rating=Avg("reviews__rating"), review_count=Count("reviews", distinct=True)
+        )
         params = self.request.query_params
 
         qs = self._apply_int_filter(qs, "avg_daily_budget__gte", params.get("min_budget"))
@@ -116,3 +121,49 @@ class SavedDestinationViewSet(
         return SavedDestination.objects.select_related("destination").filter(
             user=self.request.user
         )
+
+
+class DestinationReviewViewSet(
+    mixins.CreateModelMixin,
+    mixins.ListModelMixin,
+    mixins.DestroyModelMixin,
+    viewsets.GenericViewSet,
+):
+    """Reviews for one destination. Pass ``?destination=<id>`` to list them.
+
+    Open to any onboarded user — see DestinationReview's docstring for why
+    this isn't gated on a recorded past trip there.
+    """
+
+    serializer_class = DestinationReviewSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = DestinationReview.objects.select_related("author__profile")
+        destination_id = self.request.query_params.get("destination")
+        if destination_id:
+            qs = qs.filter(destination_id=destination_id)
+        return qs
+
+    def perform_create(self, serializer):
+        # A second review from the same author for the same destination edits
+        # the first rather than erroring or duplicating — same idea as
+        # SavedDestinationSerializer.create's get_or_create.
+        DestinationReview.objects.update_or_create(
+            destination=serializer.validated_data["destination"],
+            author=self.request.user,
+            defaults={
+                "rating": serializer.validated_data["rating"],
+                "body": serializer.validated_data.get("body", ""),
+            },
+        )
+        # Re-point the serializer instance at the row that now exists so the
+        # response reflects the upserted state either way.
+        serializer.instance = DestinationReview.objects.get(
+            destination=serializer.validated_data["destination"], author=self.request.user
+        )
+
+    def perform_destroy(self, instance):
+        if instance.author_id != self.request.user.pk:
+            raise PermissionDenied("You may only remove your own review.")
+        instance.delete()

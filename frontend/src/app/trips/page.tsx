@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 import { api } from "@/lib/api";
 import { Destination } from "@/lib/discover";
-import { createTrip, listTrips, Trip } from "@/lib/trips";
+import { createTrip, listTrips, openTripToJoin, Trip } from "@/lib/trips";
 import { FormError, Input, Select } from "@/components/ui";
 
 /** Lucide `arrow-right`, inlined — matches the `heart`/`map-pin` icons already inlined elsewhere. */
@@ -28,7 +29,12 @@ function ArrowRight({ className = "" }: { className?: string }) {
   );
 }
 
-export default function TripsPage() {
+function TripsInner() {
+  const params = useSearchParams();
+  // A destination detail page's "Start a Trip Here" CTA lands here with the
+  // destination pre-picked; applied once the catalogue has loaded (see below).
+  const prefillDestination = params.get("destination") ?? "";
+
   const [trips, setTrips] = useState<Trip[]>([]);
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,6 +44,7 @@ export default function TripsPage() {
   const [destination, setDestination] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [openToJoin, setOpenToJoin] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -53,12 +60,20 @@ export default function TripsPage() {
         if (cancelled) return;
         setTrips(tripsData);
         setDestinations(destData);
+        if (prefillDestination) {
+          const match = destData.find((d) => String(d.id) === prefillDestination);
+          if (match) {
+            setDestination(String(match.id));
+            setTitle((t) => t || `Trip to ${match.name}`);
+          }
+        }
       })
       .catch(() => !cancelled && setError("Couldn't load your trips."))
       .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- prefill only applies once, from the URL at mount
   }, []);
 
   async function handleCreate(e: React.FormEvent) {
@@ -67,17 +82,21 @@ export default function TripsPage() {
     setSaving(true);
     setError(null);
     try {
-      const trip = await createTrip({
+      let trip = await createTrip({
         title: title.trim(),
         destination: destination ? Number(destination) : null,
         start_date: startDate || null,
         end_date: endDate || null,
       });
+      if (openToJoin) {
+        trip = await openTripToJoin(trip.id);
+      }
       setTrips((prev) => [trip, ...prev]);
       setTitle("");
       setDestination("");
       setStartDate("");
       setEndDate("");
+      setOpenToJoin(false);
     } catch {
       setError("Couldn't create the trip. Check the dates and try again.");
     } finally {
@@ -136,6 +155,14 @@ export default function TripsPage() {
             onChange={(e) => setEndDate(e.target.value)}
           />
         </div>
+        <label className="flex items-center gap-2 text-sm text-brand-teal">
+          <input
+            type="checkbox"
+            checked={openToJoin}
+            onChange={(e) => setOpenToJoin(e.target.checked)}
+          />
+          Open to join — let other travellers ask to join this trip
+        </label>
         <button
           type="submit"
           disabled={saving || !title.trim()}
@@ -156,6 +183,7 @@ export default function TripsPage() {
           <ul className="grid gap-[18px] sm:grid-cols-2">
             {trips.map((trip) => {
               const photo = trip.destination ? destById[trip.destination] : null;
+              const cover = trip.cover_image_url || photo?.image_url;
               return (
                 <li key={trip.id}>
                   <Link
@@ -163,9 +191,9 @@ export default function TripsPage() {
                     className="group block overflow-hidden rounded-[18px] border border-line bg-surface transition hover:-translate-y-0.5"
                   >
                     <div className="relative h-24">
-                      {photo ? (
+                      {cover ? (
                         <Image
-                          src={photo.image_url}
+                          src={cover}
                           alt=""
                           width={400}
                           height={200}
@@ -208,5 +236,13 @@ export default function TripsPage() {
         )}
       </section>
     </main>
+  );
+}
+
+export default function TripsPage() {
+  return (
+    <Suspense fallback={<p className="p-6 text-sm">Loading…</p>}>
+      <TripsInner />
+    </Suspense>
   );
 }

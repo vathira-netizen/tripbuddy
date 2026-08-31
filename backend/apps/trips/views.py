@@ -1,26 +1,31 @@
 import csv
 
+from django.db.models import Q
 from django.http import HttpResponse
-from drf_spectacular.utils import extend_schema
+from django.utils import timezone
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import generics, mixins, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
+from apps.accounts.models import Profile
 from apps.budgets import services
 from apps.budgets.models import BudgetItem
-from apps.common.permissions import IsTripMember, IsTripOwner
+from apps.common.permissions import IsTripMember, IsTripOwner, is_trip_member
 from apps.common.querysets import visible_itinerary_items, visible_trips
 from apps.trips import ai_service
-from apps.trips.models import ItineraryItem, Trip, TripCollaborator
+from apps.trips.models import ItineraryItem, Trip, TripCollaborator, TripJoinRequest
 from apps.trips.serializers import (
     ApplyItinerarySerializer,
     GenerateParamsSerializer,
     InviteSerializer,
     ItineraryItemSerializer,
+    OpenTripSerializer,
     PublicTripSerializer,
     ReorderSerializer,
+    TripJoinRequestSerializer,
     TripSerializer,
 )
 
@@ -43,7 +48,7 @@ class TripViewSet(
     permission_classes = [IsAuthenticated, IsTripMember]
 
     # Owner-only actions. Everything else is open to any trip member.
-    OWNER_ACTIONS = {"destroy", "invite", "share", "unshare"}
+    OWNER_ACTIONS = {"destroy", "invite", "share", "unshare", "open_to_join", "close_to_join"}
 
     def get_permissions(self):
         if self.action in self.OWNER_ACTIONS:
@@ -136,6 +141,53 @@ class TripViewSet(
         return Response(
             TripSerializer(trip, context={"request": self.request}).data
         )
+
+    @extend_schema(
+        summary="Open this trip to join requests from any traveller",
+        request=None, responses={200: TripSerializer},
+    )
+    @action(detail=True, methods=["post"], url_path="open-to-join")
+    def open_to_join(self, request, pk=None):
+        return self._set_open_to_join(True)
+
+    @extend_schema(
+        summary="Stop accepting join requests", request=None,
+        responses={200: TripSerializer},
+    )
+    @action(detail=True, methods=["post"], url_path="close-to-join")
+    def close_to_join(self, request, pk=None):
+        return self._set_open_to_join(False)
+
+    def _set_open_to_join(self, is_open):
+        trip = self.get_object()
+        trip.is_open_to_join = is_open
+        trip.save(update_fields=["is_open_to_join", "updated_at"])
+        return Response(
+            TripSerializer(trip, context={"request": self.request}).data
+        )
+
+    @extend_schema(
+        summary="Trips open to join, optionally filtered by destination",
+        description="Browsable by any authenticated user, not just members — "
+                    "this is how a stranger on a destination page finds a "
+                    "trip to ask to join. Returns the narrow OpenTripSerializer "
+                    "shape, never budget/share/collaborator details.",
+        parameters=[OpenApiParameter("destination", int, required=False)],
+        responses=OpenTripSerializer(many=True),
+    )
+    @action(detail=False, methods=["get"], url_path="open")
+    def open_trips(self, request):
+        today = timezone.now().date()
+        qs = (
+            Trip.objects.filter(is_open_to_join=True)
+            .filter(Q(end_date__isnull=True) | Q(end_date__gte=today))
+            .select_related("owner__profile")
+        )
+        destination_id = request.query_params.get("destination")
+        if destination_id:
+            qs = qs.filter(destination_id=destination_id)
+        serializer = OpenTripSerializer(qs, many=True)
+        return Response(serializer.data)
 
     @extend_schema(
         summary="Draft an itinerary with the AI generator (not persisted)",
@@ -232,13 +284,36 @@ class TripViewSet(
         items = list(trip.budget_items.all())
         members = [trip.owner_id, *trip.collaborators.values_list("user_id", flat=True)]
 
+        # Real names/avatars for the per-person split — kept out of
+        # apps.budgets.services, which is deliberately ORM-free (see its
+        # docstring); the view is the seam that bridges a real queryset in.
+        # upi_vpa is included so a member who's owed money can be paid via the
+        # Settle Up flow — scoped to fellow trip members only, never public.
+        profiles = Profile.objects.filter(user_id__in=members).values(
+            "user_id", "display_name", "avatar_url", "upi_vpa"
+        )
+        member_info = {
+            str(p["user_id"]): {
+                "display_name": p["display_name"],
+                "avatar_url": p["avatar_url"],
+                "upi_vpa": p["upi_vpa"],
+                "is_owner": p["user_id"] == trip.owner_id,
+                "is_me": p["user_id"] == request.user.pk,
+            }
+            for p in profiles
+        }
+
+        per_person = services.per_person_split(items, members)
+
         return Response(
             {
                 "trip_id": trip.id,
                 "nights": trip.nights,
                 "category_totals": services.category_totals(items),
                 "per_day": services.per_day_breakdown(items, trip.nights),
-                "per_person": services.per_person_split(items, members),
+                "per_person": per_person,
+                "settlements": services.simplify_debts(per_person["per_member"]),
+                "members": member_info,
                 "running_total": services.running_total_vs_target(
                     items, trip.target_amount
                 ),
@@ -285,6 +360,90 @@ class ItineraryItemViewSet(viewsets.ModelViewSet):
         if trip_id:
             qs = qs.filter(trip_id=trip_id)
         return qs
+
+
+class TripJoinRequestViewSet(
+    mixins.CreateModelMixin,
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    viewsets.GenericViewSet,
+):
+    """Ask to join an ``is_open_to_join`` trip; the owner accepts/declines.
+
+    Mirrors apps.connections.views.ConnectionViewSet's shape: visible to
+    either side (the requester, to see their own status; the trip owner, to
+    review requests), create resolves the trip from the body rather than the
+    URL, accept/decline are owner-only detail actions.
+    """
+
+    serializer_class = TripJoinRequestSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        return TripJoinRequest.objects.filter(
+            Q(requester=user) | Q(trip__owner=user)
+        ).select_related("trip", "requester__profile")
+
+    @extend_schema(
+        summary="Ask to join a trip",
+        description="The trip must have is_open_to_join=True. 409s (with the "
+                    "existing request) on a duplicate ask, matching how "
+                    "apps.connections handles a repeat connection request.",
+    )
+    def create(self, request, *args, **kwargs):
+        trip_id = request.data.get("trip")
+        trip = Trip.objects.filter(pk=trip_id, is_open_to_join=True).first()
+        if trip is None:
+            raise ValidationError({"trip": "No open-to-join trip with that id."})
+        if is_trip_member(request.user, trip):
+            raise ValidationError({"trip": "You're already on this trip."})
+
+        existing = TripJoinRequest.objects.filter(trip=trip, requester=request.user).first()
+        if existing is not None:
+            return Response(
+                self.get_serializer(existing).data, status=status.HTTP_409_CONFLICT
+            )
+
+        serializer = self.get_serializer(
+            data={**request.data, "trip": trip.id}
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save(trip=trip, requester=request.user)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @extend_schema(summary="Accept a join request", request=None,
+                   responses={200: TripJoinRequestSerializer})
+    @action(detail=True, methods=["post"])
+    def accept(self, request, pk=None):
+        return self._respond(status_value=TripJoinRequest.Status.ACCEPTED)
+
+    @extend_schema(summary="Decline a join request", request=None,
+                   responses={200: TripJoinRequestSerializer})
+    @action(detail=True, methods=["post"])
+    def decline(self, request, pk=None):
+        return self._respond(status_value=TripJoinRequest.Status.DECLINED)
+
+    def _respond(self, status_value):
+        join_request = self.get_object()
+        if join_request.trip.owner_id != self.request.user.pk:
+            raise PermissionDenied("Only the trip owner may answer this request.")
+        if join_request.status != TripJoinRequest.Status.PENDING:
+            raise ValidationError(
+                {"status": f"This request is already {join_request.status}."}
+            )
+
+        join_request.status = status_value
+        join_request.save(update_fields=["status", "updated_at"])
+
+        if status_value == TripJoinRequest.Status.ACCEPTED:
+            TripCollaborator.objects.get_or_create(
+                trip=join_request.trip,
+                user=join_request.requester,
+                defaults={"role": TripCollaborator.Role.EDITOR},
+            )
+
+        return Response(self.get_serializer(join_request).data)
 
 
 class PublicSharedTripView(generics.RetrieveAPIView):

@@ -237,6 +237,45 @@ def test_patch_updates_own_profile(settings_secret, client):
 
 
 @pytest.mark.django_db
+def test_patch_upi_vpa_round_trips(settings_secret, client):
+    c = auth(client, make_token())
+    resp = c.patch("/api/profile/me/", {"upi_vpa": "asha@okhdfcbank"}, format="json")
+    assert resp.status_code == 200
+    assert resp.data["upi_vpa"] == "asha@okhdfcbank"
+
+
+@pytest.mark.django_db
+def test_patch_rejects_malformed_upi_vpa(settings_secret, client):
+    c = auth(client, make_token())
+    resp = c.patch("/api/profile/me/", {"upi_vpa": "not a vpa"}, format="json")
+    assert resp.status_code == 400
+
+
+@pytest.mark.django_db
+def test_completeness_reflects_filled_fields(settings_secret, client):
+    c = auth(client, make_token())
+    empty = c.get("/api/profile/me/").data["completeness"]
+    assert empty["percent"] < 100
+    assert "a bio" in empty["missing"]
+
+    c.patch(
+        "/api/profile/me/",
+        {
+            "avatar_url": "https://example.com/a.jpg",
+            "bio": "I love trains.",
+            "travel_styles": ["backpacking"],
+            "languages": ["english"],
+            "interests": ["food"],
+            "daily_budget": 1500,
+            "upi_vpa": "asha@okbank",
+        },
+        format="json",
+    )
+    full = c.get("/api/profile/me/").data["completeness"]
+    assert full == {"percent": 100, "missing": []}
+
+
+@pytest.mark.django_db
 def test_patch_city_regeocodes_area(settings_secret, client, monkeypatch):
     def fake_geocode(query):
         assert query == "Kochi"
@@ -343,6 +382,75 @@ def test_public_traveller_view_hides_coordinates(settings_secret):
     assert "77.59" not in body and "12.97" not in body
     assert "area_point" not in resp.data and "area" not in resp.data
     assert resp.data["display_name"] == "Other"
+
+
+@pytest.mark.django_db
+def test_email_verified_syncs_from_token_claim(settings_secret):
+    sub = str(uuid.uuid4())
+    c = auth(APIClient(), make_token(sub=sub, email_verified=False))
+    c.get("/api/profile/me/")
+    assert Profile.objects.get(supabase_user_id=sub).email_verified is False
+
+    # Same user, later token now claims a verified email.
+    c2 = auth(APIClient(), make_token(sub=sub, email_verified=True))
+    c2.get("/api/profile/me/")
+    assert Profile.objects.get(supabase_user_id=sub).email_verified is True
+
+
+@pytest.mark.django_db
+def test_badges_reflect_verification_completeness_and_activity(settings_secret):
+    sub = str(uuid.uuid4())
+    c = auth(APIClient(), make_token(sub=sub, email_verified=True))
+    c.get("/api/profile/me/")
+    profile = Profile.objects.get(supabase_user_id=sub)
+    profile.onboarded = True
+    profile.bio = "I love trains."
+    profile.travel_styles = ["backpacking"]
+    profile.save()
+
+    viewer = auth(APIClient(), make_token(email="viewer@x.com"))
+    resp = viewer.get(f"/api/travellers/{sub}/")
+    assert resp.status_code == 200
+    assert set(resp.data["badges"]) == {"email_verified", "profile_complete"}
+    assert resp.data["bio"] == "I love trains."
+    assert resp.data["travel_styles"] == ["backpacking"]
+    assert resp.data["past_destinations"] == []
+
+
+@pytest.mark.django_db
+def test_active_traveller_badge_and_past_destinations_from_finished_trips(settings_secret):
+    from datetime import date, timedelta
+
+    from apps.destinations.models import Destination
+    from apps.trips.models import Trip
+
+    sub = str(uuid.uuid4())
+    c = auth(APIClient(), make_token(sub=sub))
+    c.get("/api/profile/me/")
+    profile = Profile.objects.get(supabase_user_id=sub)
+    profile.onboarded = True
+    profile.save()
+
+    dest = Destination.objects.create(
+        name="Goa",
+        slug="goa-badges-test",
+        point=Point(74.12, 15.3, srid=4326),
+        avg_daily_budget=1500,
+        budget_tier="budget",
+    )
+    Trip.objects.create(
+        owner=profile.user,
+        title="Old Goa trip",
+        destination=dest,
+        start_date=date.today() - timedelta(days=30),
+        end_date=date.today() - timedelta(days=25),
+    )
+
+    viewer = auth(APIClient(), make_token(email="viewer2@x.com"))
+    resp = viewer.get(f"/api/travellers/{sub}/")
+    assert resp.status_code == 200
+    assert "active_traveller" in resp.data["badges"]
+    assert [d["slug"] for d in resp.data["past_destinations"]] == ["goa-badges-test"]
 
 
 # --- Onboarding (geocoding mocked) ----------------------------------------

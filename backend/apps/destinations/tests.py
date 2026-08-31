@@ -65,12 +65,93 @@ def test_seed_is_idempotent():
     assert Destination.objects.count() == first  # no duplicates on re-run
 
 
+@pytest.mark.django_db
+def test_seed_fills_gallery_image_urls():
+    call_command("seed_destinations")
+    dest = Destination.objects.first()
+    assert len(dest.image_urls) == 3
+    assert all(dest.slug in url for url in dest.image_urls)
+
+
 # --- Auth gate ------------------------------------------------------------
 
 
 @pytest.mark.django_db
 def test_list_requires_auth():
     assert APIClient().get("/api/destinations/").status_code == 401
+
+
+# --- Retrieve by slug -------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_retrieve_by_slug(client):
+    make_dest("goa-detail-test", 15.3, 74.1)
+    resp = client.get("/api/destinations/goa-detail-test/")
+    assert resp.status_code == 200
+    assert resp.data["slug"] == "goa-detail-test"
+
+
+# --- Reviews ----------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_review_create_and_appears_on_destination_aggregate(client):
+    dest = make_dest("goa-reviews", 15.3, 74.1)
+
+    resp = client.post(
+        "/api/destination-reviews/",
+        {"destination": dest.id, "rating": 4, "body": "Loved the beaches."},
+        format="json",
+    )
+    assert resp.status_code == 201
+    assert resp.data["rating"] == 4
+
+    listed = client.get(f"/api/destination-reviews/?destination={dest.id}")
+    assert len(listed.data["results"]) == 1
+
+    on_dest = client.get("/api/destinations/goa-reviews/")
+    assert on_dest.data["avg_rating"] == 4.0
+    assert on_dest.data["review_count"] == 1
+
+
+@pytest.mark.django_db
+def test_second_review_from_same_author_edits_not_duplicates(client):
+    dest = make_dest("goa-reviews-2", 15.3, 74.1)
+
+    client.post(
+        "/api/destination-reviews/",
+        {"destination": dest.id, "rating": 2, "body": "Meh."},
+        format="json",
+    )
+    resp = client.post(
+        "/api/destination-reviews/",
+        {"destination": dest.id, "rating": 5, "body": "Actually great."},
+        format="json",
+    )
+    assert resp.status_code == 201
+    assert resp.data["rating"] == 5
+
+    from apps.destinations.models import DestinationReview
+
+    assert DestinationReview.objects.filter(destination=dest).count() == 1
+
+
+@pytest.mark.django_db
+def test_review_delete_requires_authorship(client, settings_secret):
+    dest = make_dest("goa-reviews-3", 15.3, 74.1)
+    created = client.post(
+        "/api/destination-reviews/",
+        {"destination": dest.id, "rating": 3},
+        format="json",
+    )
+    review_id = created.data["id"]
+
+    other = APIClient()
+    other.credentials(HTTP_AUTHORIZATION=f"Bearer {make_token(email='other@example.com')}")
+    assert other.delete(f"/api/destination-reviews/{review_id}/").status_code == 403
+
+    assert client.delete(f"/api/destination-reviews/{review_id}/").status_code == 204
 
 
 # --- Filtering & ordering -------------------------------------------------

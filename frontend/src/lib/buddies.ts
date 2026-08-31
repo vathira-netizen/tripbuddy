@@ -18,9 +18,16 @@ export interface Explanation {
   contribution: number;
 }
 
+/** Credibility badge keys the backend may return — see apps.accounts.badges. */
+export type Badge = "email_verified" | "profile_complete" | "active_traveller";
+
 export interface BuddyCandidate {
   supabase_user_id: string;
   display_name: string;
+  avatar_url: string;
+  bio: string;
+  travel_styles: string[];
+  badges: Badge[];
   age_band: string;
   gender: string;
   languages: string[];
@@ -45,6 +52,10 @@ export type ConnectionStatus = "pending" | "accepted" | "declined" | "blocked";
 export interface ConnectionParticipant {
   supabase_user_id: string;
   display_name: string;
+  avatar_url: string;
+  bio: string;
+  travel_styles: string[];
+  badges: Badge[];
   age_band: string;
   gender: string;
   languages: string[];
@@ -52,6 +63,22 @@ export interface ConnectionParticipant {
   budget_style: string;
   area_label: string;
 }
+
+/** A destination this traveller has visited on a finished trip. */
+export interface PastDestination {
+  id: number;
+  name: string;
+  slug: string;
+  image_url: string;
+}
+
+/** Full public profile for the traveller-detail modal — GET /api/travellers/<id>/. */
+export interface TravellerDetail extends ConnectionParticipant {
+  past_destinations: PastDestination[];
+}
+
+export const getTraveller = (supabaseUserId: string) =>
+  api.get<TravellerDetail>(`/api/travellers/${supabaseUserId}/`);
 
 export interface Connection {
   id: number;
@@ -78,6 +105,8 @@ export interface BuddyFilters {
   gender?: string;
   ageBand?: string;
   destination?: number;
+  /** Restricted server-side to verified female requesters. */
+  womenOnly?: boolean;
 }
 
 function buildQuery(f: BuddyFilters): string {
@@ -86,6 +115,7 @@ function buildQuery(f: BuddyFilters): string {
   if (f.gender) q.set("gender", f.gender);
   if (f.ageBand) q.set("age_band", f.ageBand);
   if (f.destination) q.set("destination", String(f.destination));
+  if (f.womenOnly) q.set("women_only", "true");
   const s = q.toString();
   return s ? `?${s}` : "";
 }
@@ -117,6 +147,16 @@ export const declineConnection = (id: number) =>
 
 export const blockConnection = (id: number) =>
   api.post<Connection>(`/api/connections/${id}/block/`, {});
+
+/** Block a traveller directly, with no prior connection required. */
+export const blockTraveller = (supabaseUserId: string) =>
+  api.post<Connection>("/api/connections/block-user/", {
+    supabase_user_id: supabaseUserId,
+  });
+
+/** Withdraw a request you sent, while it's still pending. */
+export const cancelConnection = (id: number) =>
+  api.delete<void>(`/api/connections/${id}/`);
 
 /**
  * Initials for the avatar placeholder. Profiles have no photo field yet, so

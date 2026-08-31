@@ -18,6 +18,9 @@ export interface BudgetItem {
   label: string;
   amount: string;
   payer: number | null;
+  /** Read-only: the payer's display name, resolved server-side. */
+  payer_name: string | null;
+  payer_avatar_url: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -30,6 +33,24 @@ export interface PerMemberSplit {
   paid: string;
   owed: string;
   balance: string;
+}
+
+/** One trip member, keyed by their Django user id (as a string) in BudgetSummary.members. */
+export interface BudgetMember {
+  display_name: string;
+  avatar_url: string;
+  /** Only meaningful to the requester's fellow trip members — never public. */
+  upi_vpa: string;
+  is_owner: boolean;
+  /** True on the entry belonging to the requesting user. */
+  is_me: boolean;
+}
+
+/** One minimal-transaction settlement — member ids match BudgetSummary.members keys. */
+export interface Settlement {
+  from_user: number;
+  to_user: number;
+  amount: string;
 }
 
 export interface BudgetSummary {
@@ -45,6 +66,10 @@ export interface BudgetSummary {
     equal_share: string;
     per_member: Record<string, PerMemberSplit>;
   };
+  /** Minimal set of payments that would settle every balance to zero. */
+  settlements: Settlement[];
+  /** Trip member id -> name/avatar, for labelling per_person and payer pickers. */
+  members: Record<string, BudgetMember>;
   running_total: {
     total: string;
     target: string | null;

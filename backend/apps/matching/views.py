@@ -2,6 +2,7 @@
 
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status, viewsets
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -36,6 +37,12 @@ class BuddyViewSet(viewsets.ViewSet):
                 int,
                 description="Destination id — only travellers who saved it.",
             ),
+            OpenApiParameter(
+                "women_only",
+                bool,
+                description="Only female candidates. Restricted to requesters "
+                            "who are themselves a verified female profile.",
+            ),
         ],
         responses=BuddyCandidateSerializer(many=True),
     )
@@ -58,10 +65,18 @@ class BuddyViewSet(viewsets.ViewSet):
                 status=status.HTTP_409_CONFLICT,
             )
 
+        gender = data.get("gender") or None
+        if data.get("women_only"):
+            if not (profile.gender == "female" and profile.email_verified):
+                raise PermissionDenied(
+                    "Women-only matching is available to verified female profiles."
+                )
+            gender = "female"
+
         ranked = services.rank_candidates(
             request.user,
             radius_km=data.get("radius_km"),
-            gender=data.get("gender") or None,
+            gender=gender,
             age_band=data.get("age_band") or None,
             destination_id=data.get("destination"),
         )

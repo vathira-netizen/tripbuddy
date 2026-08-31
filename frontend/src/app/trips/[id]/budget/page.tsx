@@ -15,6 +15,7 @@ import {
 import BudgetEditor from "@/components/BudgetEditor";
 import { PerDayPanel, PerPersonPanel, RunningTotalBar } from "@/components/BudgetSummaryPanels";
 import CategoryBreakdownChart, { CategoryTotal } from "@/components/CategoryBreakdownChart";
+import SettleUpPanel from "@/components/SettleUpPanel";
 
 interface Trip {
   id: number;
@@ -158,12 +159,19 @@ export default function TripBudgetPage() {
 
       <section className="card p-4">
         <h2 className="mb-3 text-sm font-semibold">Per person</h2>
-        <PerPersonPanel perPerson={summary.per_person} />
+        <PerPersonPanel perPerson={summary.per_person} members={summary.members} />
       </section>
+
+      <SettleUpPanel settlements={summary.settlements} members={summary.members} />
 
       <section className="card p-4">
         <h2 className="mb-3 text-sm font-semibold">Budget items</h2>
-        <BudgetEditor tripId={tripId} items={items} onItemsChange={handleItemsChange} />
+        <BudgetEditor
+          tripId={tripId}
+          items={items}
+          members={summary.members}
+          onItemsChange={handleItemsChange}
+        />
       </section>
     </main>
   );

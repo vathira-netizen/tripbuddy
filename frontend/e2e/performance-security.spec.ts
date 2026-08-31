@@ -220,7 +220,7 @@ test("no server-side secret reaches the browser", async ({ page }) => {
   const secrets: [string, string][] = [
     ["SUPABASE_SERVICE_ROLE_KEY", SERVICE_KEY],
     ["SUPABASE_JWT_SECRET", be.SUPABASE_JWT_SECRET],
-    ["GROK_API_KEY", be.GROK_API_KEY],
+    ["GROQ_API_KEY", be.GROQ_API_KEY],
     ["DJANGO_SECRET_KEY", be.DJANGO_SECRET_KEY],
   ];
 
@@ -258,7 +258,7 @@ test("the built client bundle contains no server-side secret", async () => {
   // that leaks. Grep the whole build output instead.
   const root = join(process.cwd(), ".next");
   const found: string[] = [];
-  const secrets = [SERVICE_KEY, be.SUPABASE_JWT_SECRET, be.GROK_API_KEY].filter(Boolean);
+  const secrets = [SERVICE_KEY, be.SUPABASE_JWT_SECRET, be.GROQ_API_KEY].filter(Boolean);
 
   const walk = (dir: string) => {
     for (const entry of readdirSync(dir)) {

@@ -64,6 +64,8 @@ INTEREST_TAGS = [
     "wellness",
 ]
 
+TRAVEL_STYLES = ["backpacking", "luxury", "solo", "weekend"]
+
 LANGUAGES = [
     "assamese",
     "bengali",

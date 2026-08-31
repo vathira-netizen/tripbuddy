@@ -123,6 +123,53 @@ def test_per_person_split_no_members_is_empty_not_a_crash():
     assert result["per_member"] == {}
 
 
+# --- simplify_debts -----------------------------------------------------------
+
+
+def test_simplify_debts_one_payer_three_way_split():
+    # Alice paid 300 for a 3-way split: Bob and Carol each owe her 100.
+    items = [item("Food", "90", payer_id=1), item("Stay", "210", payer_id=1)]
+    split = services.per_person_split(items, members=[1, 2, 3])
+
+    settlements = services.simplify_debts(split["per_member"])
+    assert {(s["from_user"], s["to_user"], s["amount"]) for s in settlements} == {
+        (2, 1, Decimal("100.00")),
+        (3, 1, Decimal("100.00")),
+    }
+
+
+def test_simplify_debts_already_settled_is_empty():
+    items = [item("Food", "100", payer_id=1), item("Food", "100", payer_id=2)]
+    split = services.per_person_split(items, members=[1, 2])
+    assert services.simplify_debts(split["per_member"]) == []
+
+
+def test_simplify_debts_minimises_transaction_count():
+    # Four members, one big payer (1) and one who paid nothing extra (4) among
+    # otherwise-even payers — optimal settlement is 3 transactions max
+    # (n - 1 members), never one per pair.
+    items = [
+        item("Stay", "400", payer_id=1),
+        item("Food", "40", payer_id=2),
+        item("Food", "40", payer_id=3),
+    ]
+    split = services.per_person_split(items, members=[1, 2, 3, 4])
+    settlements = services.simplify_debts(split["per_member"])
+
+    assert len(settlements) <= 3
+    # Every settlement actually moves money and nobody pays themselves.
+    for s in settlements:
+        assert s["amount"] > 0
+        assert s["from_user"] != s["to_user"]
+    # The settlements exactly cancel out each member's balance.
+    net = {m: Decimal("0") for m in (1, 2, 3, 4)}
+    for s in settlements:
+        net[s["from_user"]] -= s["amount"]
+        net[s["to_user"]] += s["amount"]
+    for member_id, balance in net.items():
+        assert balance == split["per_member"][member_id]["balance"]
+
+
 # --- running_total_vs_target --------------------------------------------------
 
 
@@ -204,6 +251,24 @@ def test_budget_item_crud(client):
     assert updated.data["amount"] == "5000.00"
 
     assert client.delete(f"/api/budget-items/{item_id}/").status_code == 204
+
+
+@pytest.mark.django_db
+def test_budget_item_reports_payer_name(client):
+    from apps.trips.models import Trip
+
+    trip_id = client.post("/api/trips/", {"title": "Goa run"}, format="json").data["id"]
+    me = client.get("/api/profile/me/").data
+    owner_id = Trip.objects.get(pk=trip_id).owner_id
+
+    created = client.post(
+        "/api/budget-items/",
+        {"trip": trip_id, "category": "Food", "label": "Lunch", "amount": "300", "payer": owner_id},
+        format="json",
+    )
+    assert created.status_code == 201
+    assert created.data["payer_name"] == me["display_name"]
+    assert "payer_avatar_url" in created.data
 
 
 @pytest.mark.django_db

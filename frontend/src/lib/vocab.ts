@@ -38,6 +38,8 @@ export const INTEREST_TAGS = [
   "wellness",
 ] as const;
 
+export const TRAVEL_STYLES = ["backpacking", "luxury", "solo", "weekend"] as const;
+
 export const LANGUAGES = [
   "assamese",
   "bengali",

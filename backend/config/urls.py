@@ -49,4 +49,5 @@ urlpatterns = [
     # the messaging app, not by a ConnectionViewSet action.
     path('api/', include('apps.messaging.urls')),
     path('api/', include('apps.connections.urls')),
+    path('api/', include('apps.moderation.urls')),
 ]

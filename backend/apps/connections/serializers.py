@@ -8,6 +8,7 @@ exist.
 
 from rest_framework import serializers
 
+from apps.accounts.badges import compute_badges
 from apps.accounts.models import Profile
 from apps.connections.models import Connection
 
@@ -15,14 +16,23 @@ from apps.connections.models import Connection
 class ConnectionParticipantSerializer(serializers.ModelSerializer):
     """The other traveller on a connection — the same safe subset as elsewhere.
 
-    No coordinates and no email, matching ``PublicProfileSerializer``.
+    No coordinates and no email, matching ``PublicProfileSerializer``. Unlike
+    that serializer, this backs a *list* endpoint, so it skips
+    ``past_destinations`` (an extra query per row — N+1 across a list) and
+    keeps only the cheap same-row fields plus ``badges``.
     """
+
+    badges = serializers.SerializerMethodField()
 
     class Meta:
         model = Profile
         fields = [
             "supabase_user_id",
             "display_name",
+            "avatar_url",
+            "bio",
+            "travel_styles",
+            "badges",
             "age_band",
             "gender",
             "languages",
@@ -31,6 +41,9 @@ class ConnectionParticipantSerializer(serializers.ModelSerializer):
             "area_label",
         ]
         read_only_fields = fields
+
+    def get_badges(self, obj) -> list[str]:
+        return compute_badges(obj)
 
 
 class ConnectionSerializer(serializers.ModelSerializer):

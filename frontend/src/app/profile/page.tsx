@@ -2,10 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 import { api, ApiError } from "@/lib/api";
 import { profileEditSchema, type Profile } from "@/lib/schemas";
-import { Button, FormError, FormSuccess, Input } from "@/components/ui";
+import { TRAVEL_STYLES } from "@/lib/vocab";
+import { Button, FormError, FormSuccess, Input, TagPicker } from "@/components/ui";
+import AvatarUpload from "@/components/AvatarUpload";
+import ProfileCompletenessMeter from "@/components/ProfileCompletenessMeter";
 import { SignOutButton } from "@/components/SignOutButton";
 import {
   applyFieldUpdate,
@@ -15,10 +19,15 @@ import {
   type ProfileFieldValues,
 } from "@/components/ProfileFields";
 
+const BIO_MAX = 280;
+
 export default function ProfilePage() {
   const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [values, setValues] = useState<ProfileFieldValues | null>(null);
+  const [bio, setBio] = useState("");
+  const [travelStyles, setTravelStyles] = useState<string[]>([]);
+  const [upiVpa, setUpiVpa] = useState("");
   // Blank means "keep my current area"; typing a city re-geocodes it.
   const [city, setCity] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -45,6 +54,9 @@ export default function ProfilePage() {
           budget_style: p.budget_style,
           daily_budget: p.daily_budget == null ? "" : String(p.daily_budget),
         });
+        setBio(p.bio);
+        setTravelStyles(p.travel_styles);
+        setUpiVpa(p.upi_vpa);
       })
       .catch(() => setFormError("Could not load your profile."))
       .finally(() => setLoading(false));
@@ -78,7 +90,13 @@ export default function ProfilePage() {
 
     // Don't send an empty city — that would be a no-op round trip to the geocoder.
     const { city: submittedCity, ...rest } = parsed.data;
-    const payload = submittedCity ? { ...rest, city: submittedCity } : rest;
+    const payload = {
+      ...rest,
+      ...(submittedCity ? { city: submittedCity } : {}),
+      bio,
+      travel_styles: travelStyles,
+      upi_vpa: upiVpa,
+    };
 
     setSaving(true);
     try {
@@ -86,11 +104,16 @@ export default function ProfilePage() {
       setProfile(updated);
       setCity("");
       setSaved(true);
+      toast.success("Profile saved successfully");
     } catch (err) {
       if (err instanceof ApiError) {
         const data = err.data as Record<string, string[]> | undefined;
-        if (data?.city) {
-          setErrors((e) => ({ ...e, city: data.city[0] }));
+        if (data?.city || data?.upi_vpa) {
+          setErrors((e) => ({
+            ...e,
+            ...(data.city ? { city: data.city[0] } : {}),
+            ...(data.upi_vpa ? { upi_vpa: data.upi_vpa[0] } : {}),
+          }));
         } else {
           setFormError("Could not save changes. Please check your entries.");
         }
@@ -128,10 +151,80 @@ export default function ProfilePage() {
         {profile.area_label ? ` · ${profile.area_label}` : ""}
       </p>
 
+      <div className="mt-5">
+        <AvatarUpload
+          supabaseUserId={profile.supabase_user_id}
+          displayName={values.display_name}
+          avatarUrl={profile.avatar_url}
+          onUploaded={(avatar_url) => setProfile((p) => (p ? { ...p, avatar_url } : p))}
+        />
+      </div>
+
+      <div className="mt-5">
+        <ProfileCompletenessMeter
+          values={{
+            avatar_url: profile.avatar_url,
+            bio,
+            travel_styles: travelStyles,
+            languages: values.languages,
+            interests: values.interests,
+            daily_budget: values.daily_budget,
+            upi_vpa: upiVpa,
+          }}
+        />
+      </div>
+
       <form onSubmit={onSubmit} className="mt-6 space-y-5" noValidate>
         <FormError message={formError} />
         <FormSuccess message={saved ? "Profile saved." : null} />
         <IdentityFields values={values} errors={errors} set={set} />
+
+        <div className="space-y-1">
+          <label htmlFor="bio" className="block text-xs text-text-subtle">
+            Travel bio
+          </label>
+          <textarea
+            id="bio"
+            name="bio"
+            rows={3}
+            maxLength={BIO_MAX}
+            value={bio}
+            onChange={(e) => {
+              setBio(e.target.value);
+              setSaved(false);
+            }}
+            placeholder="A line or two about how you like to travel…"
+            className="w-full rounded-xl border border-line-input bg-white px-3.5 py-2.5 text-sm shadow-sm outline-none transition focus:border-brand-coral focus:ring-2 focus:ring-brand-coral/30"
+          />
+          <p className="text-right text-xs text-text-subtle">
+            {bio.length}/{BIO_MAX}
+          </p>
+        </div>
+
+        <TagPicker
+          legend="Travel style"
+          options={TRAVEL_STYLES}
+          selected={travelStyles}
+          onToggle={(v) => {
+            setTravelStyles((prev) =>
+              prev.includes(v) ? prev.filter((s) => s !== v) : [...prev, v],
+            );
+            setSaved(false);
+          }}
+        />
+
+        <Input
+          label="UPI ID (for settling trip expenses)"
+          name="upi_vpa"
+          value={upiVpa}
+          onChange={(e) => {
+            setUpiVpa(e.target.value);
+            setSaved(false);
+          }}
+          placeholder="yourname@bank"
+          error={errors.upi_vpa}
+        />
+
         <PreferenceFields values={values} errors={errors} set={set} />
 
         <div className="space-y-1 border-t border-line pt-5">

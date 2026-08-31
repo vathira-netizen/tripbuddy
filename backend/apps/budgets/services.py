@@ -91,6 +91,63 @@ def per_person_split(items, members):
     }
 
 
+def simplify_debts(per_member: dict) -> list[dict]:
+    """Minimal-transaction settlement from a ``per_person_split`` result.
+
+    Greedy largest-creditor/largest-debtor matching: repeatedly pay the
+    biggest remaining debtor into the biggest remaining creditor. This is the
+    standard practical heuristic for this problem — the true minimum-transaction
+    solution is NP-hard in general, and greedy matching already gets to at
+    most ``len(members) - 1`` transactions, which is what tools like Splitwise
+    actually ship.
+
+    Returns ``[{"from_user": id, "to_user": id, "amount": Decimal}]``, largest
+    settlements first. Callers already have the resulting rows' ids in
+    ``per_member`` to resolve display names — this stays pure/ORM-free like
+    the rest of the module.
+    """
+    creditors = sorted(
+        (
+            [member_id, info["balance"]]
+            for member_id, info in per_member.items()
+            if info["balance"] > 0
+        ),
+        key=lambda row: row[1],
+        reverse=True,
+    )
+    debtors = sorted(
+        (
+            [member_id, -info["balance"]]
+            for member_id, info in per_member.items()
+            if info["balance"] < 0
+        ),
+        key=lambda row: row[1],
+        reverse=True,
+    )
+
+    settlements = []
+    i = j = 0
+    while i < len(debtors) and j < len(creditors):
+        debtor_id, owes = debtors[i]
+        creditor_id, owed = creditors[j]
+        amount = _round(min(owes, owed))
+
+        if amount > 0:
+            settlements.append(
+                {"from_user": debtor_id, "to_user": creditor_id, "amount": amount}
+            )
+
+        debtors[i][1] -= amount
+        creditors[j][1] -= amount
+        if debtors[i][1] <= Decimal("0.005"):
+            i += 1
+        if creditors[j][1] <= Decimal("0.005"):
+            j += 1
+
+    settlements.sort(key=lambda s: s["amount"], reverse=True)
+    return settlements
+
+
 def running_total_vs_target(items, target):
     """{total, target, remaining, over_budget}.
 

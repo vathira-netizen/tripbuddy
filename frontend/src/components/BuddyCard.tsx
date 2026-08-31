@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 
 import { ApiError } from "@/lib/api";
 import { BuddyCandidate, initials, sendConnectionRequest } from "@/lib/buddies";
+import TravellerProfileModal from "@/components/TravellerProfileModal";
 
 /** Lucide `map-pin`, inlined — matches the `heart` icon already inlined on /discover. */
 function MapPin({ className = "" }: { className?: string }) {
@@ -44,6 +46,7 @@ export function BuddyCard({
 }) {
   const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
   const [error, setError] = useState<string | null>(null);
+  const [showProfile, setShowProfile] = useState(false);
 
   const isTop = index === 0;
   const accent = isTop ? "text-brand-coral" : "text-brand-teal";
@@ -54,6 +57,7 @@ export function BuddyCard({
     try {
       await sendConnectionRequest(candidate.supabase_user_id);
       setState("sent");
+      toast.success(`Connection request sent to ${candidate.display_name}`);
       onConnected?.(candidate);
     } catch (err) {
       setState("idle");
@@ -70,25 +74,37 @@ export function BuddyCard({
   return (
     <article className="flex flex-col gap-3.5 rounded-[20px] border border-line bg-surface p-5">
       <header className="flex items-center gap-3.5">
-        <span
-          aria-hidden="true"
-          className={`grid h-[58px] w-[58px] shrink-0 place-items-center rounded-full font-serif text-xl font-bold ${
-            index % 2 === 0
-              ? "bg-brand-teal text-background"
-              : "bg-brand-coral text-white"
-          }`}
+        <button
+          type="button"
+          onClick={() => setShowProfile(true)}
+          aria-label={`View ${candidate.display_name}'s profile`}
+          className="contents"
         >
-          {initials(candidate.display_name)}
-        </span>
-        <div className="min-w-0 flex-1">
-          <h3 className="truncate font-serif text-xl text-brand-teal">
-            {candidate.display_name}
-          </h3>
-          <p className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-text-subtle">
-            <MapPin className="h-3.5 w-3.5 shrink-0" />
-            {candidate.area_label || "Area not set"} · {candidate.distance_bucket}
-          </p>
-        </div>
+          <span
+            aria-hidden="true"
+            className={`grid h-[58px] w-[58px] shrink-0 place-items-center overflow-hidden rounded-full font-serif text-xl font-bold transition hover:brightness-95 ${
+              index % 2 === 0
+                ? "bg-brand-teal text-background"
+                : "bg-brand-coral text-white"
+            }`}
+          >
+            {candidate.avatar_url ? (
+              // eslint-disable-next-line @next/next/no-img-element -- user-supplied external URL
+              <img src={candidate.avatar_url} alt="" className="h-full w-full object-cover" />
+            ) : (
+              initials(candidate.display_name)
+            )}
+          </span>
+          <div className="min-w-0 flex-1 text-left">
+            <h3 className="truncate font-serif text-xl text-brand-teal hover:underline">
+              {candidate.display_name}
+            </h3>
+            <p className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-text-subtle">
+              <MapPin className="h-3.5 w-3.5 shrink-0" />
+              {candidate.area_label || "Area not set"} · {candidate.distance_bucket}
+            </p>
+          </div>
+        </button>
         <div className="shrink-0 text-right">
           <div className={`font-serif text-[30px] leading-none ${accent}`}>
             {candidate.score}
@@ -139,12 +155,19 @@ export function BuddyCard({
           }`}
         >
           {state === "sent"
-            ? "✓ Request sent"
+            ? "Request Pending"
             : state === "sending"
               ? "Sending…"
               : "Connect"}
         </button>
       </div>
+
+      {showProfile && (
+        <TravellerProfileModal
+          supabaseUserId={candidate.supabase_user_id}
+          onClose={() => setShowProfile(false)}
+        />
+      )}
     </article>
   );
 }

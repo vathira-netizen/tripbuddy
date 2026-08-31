@@ -5,7 +5,7 @@ from apps.accounts.models import Profile
 from apps.budgets.models import BudgetItem
 from apps.common.permissions import is_trip_member
 from apps.common.querysets import accepted_connections
-from apps.trips.models import ItineraryItem, Trip, TripCollaborator
+from apps.trips.models import ItineraryItem, Trip, TripCollaborator, TripJoinRequest
 
 
 class ItineraryItemSerializer(serializers.ModelSerializer):
@@ -56,6 +56,8 @@ class CollaboratorSerializer(serializers.ModelSerializer):
 class TripSerializer(serializers.ModelSerializer):
     nights = serializers.ReadOnlyField()
     collaborators = CollaboratorSerializer(many=True, read_only=True)
+    is_owner = serializers.SerializerMethodField()
+    destination_name = serializers.CharField(source="destination.name", read_only=True, default=None)
 
     class Meta:
         model = Trip
@@ -64,26 +66,43 @@ class TripSerializer(serializers.ModelSerializer):
             "owner",
             "title",
             "destination",
+            "destination_name",
             "start_date",
             "end_date",
             "target_amount",
             "nights",
             "is_public",
             "share_token",
+            "cover_image_url",
+            "is_open_to_join",
             "collaborators",
+            "is_owner",
             "created_at",
         ]
         # Sharing is toggled through the share/unshare actions, never a plain
         # PATCH — so is_public and the token are read-only on the trip itself.
+        # is_open_to_join carries the same public-exposure risk (it opens the
+        # trip to join requests from strangers) so it follows the same
+        # pattern: read-only here, toggled through the owner-gated
+        # open-to-join/close-to-join actions in views.py. cover_image_url has
+        # no such risk and stays plain-PATCH writable by any trip member,
+        # like title/dates already are.
         read_only_fields = [
             "id",
             "owner",
+            "destination_name",
             "nights",
             "is_public",
             "share_token",
+            "is_open_to_join",
             "collaborators",
+            "is_owner",
             "created_at",
         ]
+
+    def get_is_owner(self, obj) -> bool:
+        request = self.context.get("request")
+        return bool(request and obj.owner_id == request.user.pk)
 
 
 class ReorderItemSerializer(serializers.Serializer):
@@ -123,6 +142,71 @@ class InviteSerializer(serializers.Serializer):
             )
         self.context["target_profile"] = profile
         return value
+
+
+class OpenTripSerializer(serializers.ModelSerializer):
+    """A trip browsed from its destination page by a non-member.
+
+    Deliberately narrow — no budget, share token, or full collaborator list;
+    a stranger deciding whether to ask to join sees only who's going and when.
+    """
+
+    nights = serializers.ReadOnlyField()
+    owner_name = serializers.SerializerMethodField()
+    owner_avatar_url = serializers.SerializerMethodField()
+    collaborator_count = serializers.IntegerField(source="collaborators.count", read_only=True)
+
+    class Meta:
+        model = Trip
+        fields = [
+            "id",
+            "title",
+            "start_date",
+            "end_date",
+            "nights",
+            "owner_name",
+            "owner_avatar_url",
+            "collaborator_count",
+        ]
+        read_only_fields = fields
+
+    def get_owner_name(self, obj) -> str:
+        profile = getattr(obj.owner, "profile", None)
+        return profile.display_name if profile else ""
+
+    def get_owner_avatar_url(self, obj) -> str:
+        profile = getattr(obj.owner, "profile", None)
+        return profile.avatar_url if profile else ""
+
+
+class TripJoinRequestSerializer(serializers.ModelSerializer):
+    """A request to join an ``is_open_to_join`` trip — the trips analogue of
+    ``apps.connections.serializers.ConnectionSerializer``.
+    """
+
+    requester_name = serializers.SerializerMethodField()
+    requester_avatar_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TripJoinRequest
+        fields = [
+            "id",
+            "trip",
+            "requester_name",
+            "requester_avatar_url",
+            "status",
+            "message",
+            "created_at",
+        ]
+        read_only_fields = ["id", "status", "created_at"]
+
+    def get_requester_name(self, obj) -> str:
+        profile = getattr(obj.requester, "profile", None)
+        return profile.display_name if profile else ""
+
+    def get_requester_avatar_url(self, obj) -> str:
+        profile = getattr(obj.requester, "profile", None)
+        return profile.avatar_url if profile else ""
 
 
 class PublicItineraryItemSerializer(serializers.ModelSerializer):

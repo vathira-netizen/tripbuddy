@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { DM_Sans, DM_Serif_Display } from "next/font/google";
 import Image from "next/image";
+import { Toaster } from "sonner";
 import "./globals.css";
 import { Nav } from "@/components/Nav";
 
@@ -35,9 +36,10 @@ export default function RootLayout({
       className={`${dmSans.variable} ${dmSerif.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        <Toaster richColors position="top-center" toastOptions={{ className: "print:hidden" }} />
         <Nav />
         {children}
-        <footer className="mt-auto brand-teal text-white/80">
+        <footer className="mt-auto brand-teal text-white/80 print:hidden">
           <div className="mx-auto flex w-full max-w-6xl flex-col gap-1 px-4 py-6 text-sm sm:flex-row sm:items-center sm:justify-between">
             <Image
               src="/brand/logo-horizontal-reversed.svg"

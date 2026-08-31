@@ -93,7 +93,9 @@ class SupabaseJWTAuthentication(authentication.BaseAuthentication):
         if not supabase_user_id:
             raise exceptions.AuthenticationFailed("Token has no subject (sub) claim.")
 
-        user = self.get_or_create_user(supabase_user_id, payload.get("email") or "")
+        user = self.get_or_create_user(
+            supabase_user_id, payload.get("email") or "", payload
+        )
         if not user.is_active:
             raise exceptions.AuthenticationFailed("User account is disabled.")
 
@@ -162,8 +164,17 @@ class SupabaseJWTAuthentication(authentication.BaseAuthentication):
         except jwt.InvalidTokenError:
             raise exceptions.AuthenticationFailed("Malformed bearer token.")
 
-    def get_or_create_user(self, supabase_user_id, email):
+    def get_or_create_user(self, supabase_user_id, email, payload=None):
         """Map a Supabase uuid onto a local User + Profile, creating both once."""
+
+        # Upgrade-only: a token that doesn't carry the claim (its exact shape
+        # isn't guaranteed stable across Supabase/GoTrue versions — this checks
+        # both places it's been seen) must never be read as "actually
+        # unverified" and flip a previously-verified profile back to False.
+        payload = payload or {}
+        email_verified = bool(
+            payload.get("email_verified") or payload.get("user_metadata", {}).get("email_verified")
+        )
 
         profile = (
             Profile.objects.select_related("user")
@@ -175,6 +186,9 @@ class SupabaseJWTAuthentication(authentication.BaseAuthentication):
                 # Supabase is the source of truth for the address.
                 profile.user.email = email
                 profile.user.save(update_fields=["email"])
+            if email_verified and not profile.email_verified:
+                profile.email_verified = True
+                profile.save(update_fields=["email_verified"])
             return profile.user
 
         try:
@@ -190,6 +204,7 @@ class SupabaseJWTAuthentication(authentication.BaseAuthentication):
                     user=user,
                     supabase_user_id=supabase_user_id,
                     display_name=email.split("@")[0][:60] if email else "",
+                    email_verified=email_verified,
                 )
         except IntegrityError:
             # Two concurrent first requests from the same new user; one lost the race.

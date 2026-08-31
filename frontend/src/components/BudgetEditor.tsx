@@ -1,11 +1,13 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { toast } from "sonner";
 
 import {
   BUDGET_CATEGORIES,
   BudgetCategory,
   BudgetItem,
+  BudgetMember,
   createBudgetItem,
   deleteBudgetItem,
   formatINR,
@@ -17,18 +19,21 @@ interface Draft {
   category: BudgetCategory;
   label: string;
   amount: string;
+  payer: string; // member id as a string, "" for unset — matches <select> semantics
 }
 
-const emptyDraft: Draft = { category: "Food", label: "", amount: "" };
+const emptyDraft: Draft = { category: "Food", label: "", amount: "", payer: "" };
 
 /** Add/edit/remove rows for a trip's budget items. Persists each change immediately. */
 export default function BudgetEditor({
   tripId,
   items,
+  members,
   onItemsChange,
 }: {
   tripId: number;
   items: BudgetItem[];
+  members: Record<string, BudgetMember>;
   onItemsChange: (items: BudgetItem[]) => void;
 }) {
   const [draft, setDraft] = useState<Draft>(emptyDraft);
@@ -37,6 +42,8 @@ export default function BudgetEditor({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const memberEntries = Object.entries(members);
+
   async function handleAdd(e: FormEvent) {
     e.preventDefault();
     if (!draft.label.trim() || !draft.amount) return;
@@ -44,9 +51,15 @@ export default function BudgetEditor({
     setSaving(true);
     setError(null);
     try {
-      const created = await createBudgetItem(tripId, draft);
+      const created = await createBudgetItem(tripId, {
+        category: draft.category,
+        label: draft.label,
+        amount: draft.amount,
+        payer: draft.payer ? Number(draft.payer) : null,
+      });
       onItemsChange([...items, created]);
       setDraft(emptyDraft);
+      toast.success("Expense logged");
     } catch {
       setError("Couldn't add that item. Try again.");
     } finally {
@@ -56,7 +69,12 @@ export default function BudgetEditor({
 
   function startEdit(item: BudgetItem) {
     setEditingId(item.id);
-    setEditDraft({ category: item.category, label: item.label, amount: item.amount });
+    setEditDraft({
+      category: item.category,
+      label: item.label,
+      amount: item.amount,
+      payer: item.payer == null ? "" : String(item.payer),
+    });
     setError(null);
   }
 
@@ -64,7 +82,12 @@ export default function BudgetEditor({
     setSaving(true);
     setError(null);
     try {
-      const updated = await updateBudgetItem(id, editDraft);
+      const updated = await updateBudgetItem(id, {
+        category: editDraft.category,
+        label: editDraft.label,
+        amount: editDraft.amount,
+        payer: editDraft.payer ? Number(editDraft.payer) : null,
+      });
       onItemsChange(items.map((i) => (i.id === id ? updated : i)));
       setEditingId(null);
     } catch {
@@ -98,6 +121,7 @@ export default function BudgetEditor({
             <tr className="border-b border-black/10 text-left text-xs uppercase tracking-wide text-black/60 dark:border-white/10 dark:text-white/60">
               <th className="py-2 pr-2 font-medium">Category</th>
               <th className="py-2 pr-2 font-medium">Label</th>
+              <th className="py-2 pr-2 font-medium">Paid by</th>
               <th className="py-2 pr-2 text-right font-medium">Amount</th>
               <th className="py-2 pl-2" />
             </tr>
@@ -106,7 +130,7 @@ export default function BudgetEditor({
             {items.length === 0 && (
               <tr>
                 <td
-                  colSpan={4}
+                  colSpan={5}
                   className="py-6 text-center text-black/60 dark:text-white/60"
                 >
                   No budget items yet — add your first one below.
@@ -152,6 +176,23 @@ export default function BudgetEditor({
                         />
                       </td>
                       <td className="py-2 pr-2">
+                        <select
+                          aria-label="Paid by"
+                          value={editDraft.payer}
+                          onChange={(e) =>
+                            setEditDraft((d) => ({ ...d, payer: e.target.value }))
+                          }
+                          className={cellInput}
+                        >
+                          <option value="">Unassigned</option>
+                          {memberEntries.map(([id, m]) => (
+                            <option key={id} value={id}>
+                              {m.display_name}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="py-2 pr-2">
                         <input
                           aria-label="Amount"
                           type="number"
@@ -186,6 +227,9 @@ export default function BudgetEditor({
                     <>
                       <td className="py-2 pr-2">{item.category}</td>
                       <td className="py-2 pr-2">{item.label}</td>
+                      <td className="py-2 pr-2 text-black/70 dark:text-white/70">
+                        {item.payer_name ?? "—"}
+                      </td>
                       <td className="py-2 pr-2 text-right tabular-nums">
                         {formatINR(item.amount)}
                       </td>
@@ -249,6 +293,21 @@ export default function BudgetEditor({
             onChange={(e) => setDraft((d) => ({ ...d, label: e.target.value }))}
             placeholder="e.g. Flight to Goa"
           />
+        </div>
+        <div className="w-36">
+          <Select
+            label="Paid by"
+            name="payer"
+            value={draft.payer}
+            onChange={(e) => setDraft((d) => ({ ...d, payer: e.target.value }))}
+          >
+            <option value="">Unassigned</option>
+            {memberEntries.map(([id, m]) => (
+              <option key={id} value={id}>
+                {m.display_name}
+              </option>
+            ))}
+          </Select>
         </div>
         <div className="w-32">
           <Input

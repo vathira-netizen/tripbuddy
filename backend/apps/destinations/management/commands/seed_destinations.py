@@ -55,6 +55,12 @@ class Command(BaseCommand):
                         "best_season": row.get("best_season", "").strip(),
                         "region": row.get("region", "").strip(),
                         "image_url": row.get("image_url", "").strip(),
+                        # Gallery extras beyond the card thumbnail above, same
+                        # deterministic placeholder convention, distinct seeds.
+                        "image_urls": [
+                            f"https://picsum.photos/seed/{row['slug'].strip()}-{n}/900/600"
+                            for n in (2, 3, 4)
+                        ],
                     },
                 )
                 created += was_created

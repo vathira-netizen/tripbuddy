@@ -13,7 +13,22 @@ export interface Destination {
   best_season: string;
   region: string;
   image_url: string;
+  /** Extra gallery photos beyond image_url, same placeholder convention. */
+  image_urls: string[];
   distance_km: number | null;
+  avg_rating: number | null;
+  review_count: number;
+}
+
+export interface DestinationReview {
+  id: number;
+  destination: number;
+  author_name: string;
+  author_avatar_url: string;
+  rating: number;
+  body: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface SavedDestination {
@@ -74,6 +89,9 @@ function buildQuery(f: DestinationFilters): string {
 export const listDestinations = (f: DestinationFilters) =>
   api.get<Page<Destination>>(`/api/destinations/${buildQuery(f)}`).then((p) => p.results);
 
+export const getDestination = (slug: string) =>
+  api.get<Destination>(`/api/destinations/${slug}/`);
+
 export const nearbyDestinations = (lat: number, lng: number, radiusKm = 500) =>
   api.get<Destination[]>(
     `/api/destinations/nearby/?lat=${lat}&lng=${lng}&radius_km=${radiusKm}`,
@@ -87,3 +105,21 @@ export const saveDestination = (destinationId: number) =>
 
 export const unsaveDestination = (savedId: number) =>
   api.delete(`/api/saved-destinations/${savedId}/`);
+
+// --- Reviews (P4) -------------------------------------------------------------
+
+export const listReviews = (destinationId: number) =>
+  api
+    .get<Page<DestinationReview>>(`/api/destination-reviews/?destination=${destinationId}`)
+    .then((p) => p.results);
+
+/** Creates your review, or edits it in place if you already left one. */
+export const submitReview = (destinationId: number, rating: number, body: string) =>
+  api.post<DestinationReview>("/api/destination-reviews/", {
+    destination: destinationId,
+    rating,
+    body,
+  });
+
+export const deleteReview = (reviewId: number) =>
+  api.delete<void>(`/api/destination-reviews/${reviewId}/`);

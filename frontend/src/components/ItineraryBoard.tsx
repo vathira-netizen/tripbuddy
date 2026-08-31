@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import {
   DndContext,
   DragEndEvent,
@@ -126,6 +127,7 @@ export default function ItineraryBoard({
         title,
       });
       onItemsChange([...items, item]);
+      toast.success("Itinerary updated");
     } catch {
       onError("Couldn't add that item.");
     }
@@ -135,6 +137,7 @@ export default function ItineraryBoard({
     try {
       const updated = await updateItineraryItem(id, patch);
       onItemsChange(items.map((it) => (it.id === id ? updated : it)));
+      toast.success("Itinerary updated");
     } catch {
       onError("Couldn't save your change.");
     }
