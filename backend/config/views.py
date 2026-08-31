@@ -26,4 +26,6 @@ def health(request):
     except OperationalError:
         db_ok = False
 
-    return Response({"ok": True, "db": db_ok})
+    from django.conf import settings
+    llm_ok = bool(settings.GROQ_API_KEY)
+    return Response({"ok": True, "db": db_ok, "llm_configured": llm_ok, "llm_key_len": len(settings.GROQ_API_KEY)})
