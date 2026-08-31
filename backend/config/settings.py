@@ -240,11 +240,11 @@ NOMINATIM_USER_AGENT = env(
 # The LLM is called server-side only (apps.trips.ai_service). The key must
 # never be exposed to the browser — keep these out of any NEXT_PUBLIC var.
 # Provider is swappable via env: point BASE_URL/MODEL/KEY at any
-# OpenAI-compatible endpoint (Grok by default; e.g. Gemini's OpenAI-compat
-# endpoint) with no code change.
-LLM_PROVIDER = env("LLM_PROVIDER", default="grok")
-LLM_BASE_URL = env("LLM_BASE_URL", default="https://api.x.ai/v1")
-LLM_MODEL = env("LLM_MODEL", default="grok-2-latest")
-GROK_API_KEY = env("GROK_API_KEY", default="")
+# OpenAI-compatible endpoint (Groq by default; e.g. Gemini's OpenAI-compat
+# endpoint, xAI Grok, etc.) with no code change.
+LLM_PROVIDER = env("LLM_PROVIDER", default="groq")
+LLM_BASE_URL = env("LLM_BASE_URL", default="https://api.groq.com/openai/v1")
+LLM_MODEL = env("LLM_MODEL", default="llama-3.3-70b-versatile")
+GROQ_API_KEY = env("GROQ_API_KEY", default="")
 # Per-request timeout (seconds) for the LLM HTTP call.
 LLM_TIMEOUT = env.int("LLM_TIMEOUT", default=30)
