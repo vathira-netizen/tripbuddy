@@ -50,14 +50,14 @@ services:
 
       # AI itinerary generator (Phase 6). Server-side only — never expose these
       # to the browser or copy them into a NEXT_PUBLIC_ variable. Without
-      # GROK_API_KEY the generate endpoint returns 503 and nothing else breaks.
-      - key: GROK_API_KEY
+      # GROQ_API_KEY the generate endpoint returns 503 and nothing else breaks.
+      - key: GROQ_API_KEY
         sync: false
       - key: LLM_PROVIDER
-        value: grok
+        value: groq
       - key: LLM_BASE_URL
-        value: https://api.x.ai/v1
-      # Pinned explicitly: the code default is grok-2-latest, so leaving this
+        value: https://api.groq.com/openai/v1
+      # Pinned explicitly: the code default is llama-3.3-70b-versatile, so leaving this
       # unset would silently run a different model in production than in dev.
       - key: LLM_MODEL
-        value: grok-4-fast
+        value: llama-3.3-70b-versatile
