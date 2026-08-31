@@ -8,7 +8,10 @@ import { createClient } from "@/lib/supabase/client";
  * `apps.accounts.authentication`. Intended for Client Components.
  */
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+// Falls back to the known-working Render backend (not localhost) — a stale or
+// misconfigured NEXT_PUBLIC_API_URL on the hosting platform must not silently
+// route production traffic to a dead/unconfigured backend.
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://tripbuddy-backend-1387.onrender.com";
 
 export class ApiError extends Error {
   status: number;
