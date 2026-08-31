@@ -35,10 +35,10 @@ class LLMError(RuntimeError):
 def call_llm(prompt: str) -> str:
     """POST a single-message chat completion and return the raw text content.
 
-    Provider-agnostic: works against any OpenAI-compatible endpoint (Grok by
+    Provider-agnostic: works against any OpenAI-compatible endpoint (Groq by
     default). This is the seam the tests replace.
     """
-    if not settings.GROK_API_KEY:
+    if not settings.GROQ_API_KEY:
         raise LLMConfigError("No LLM API key configured.")
 
     url = f"{settings.LLM_BASE_URL.rstrip('/')}/chat/completions"
@@ -49,17 +49,36 @@ def call_llm(prompt: str) -> str:
         "temperature": 0.2,
         "response_format": {"type": "json_object"},
     }
-    headers = {"Authorization": f"Bearer {settings.GROK_API_KEY}"}
+    headers = {
+        "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+        "Content-Type": "application/json",
+    }
 
     try:
+        logger.info(
+            "LLM request: provider=%s model=%s url=%s",
+            settings.LLM_PROVIDER, settings.LLM_MODEL, url,
+        )
         response = requests.post(
             url, json=payload, headers=headers, timeout=settings.LLM_TIMEOUT
         )
         response.raise_for_status()
         data = response.json()
-        return data["choices"][0]["message"]["content"]
+        content = data["choices"][0]["message"]["content"]
+        logger.info("LLM response received: %d chars", len(content))
+        return content
+    except requests.Timeout as exc:
+        logger.error("LLM call timed out after %ss", settings.LLM_TIMEOUT)
+        raise LLMError("The AI service timed out. Try again.") from exc
+    except requests.HTTPError as exc:
+        logger.error(
+            "LLM HTTP error: status=%s body=%s",
+            exc.response.status_code if exc.response is not None else "?",
+            exc.response.text[:500] if exc.response is not None else "?",
+        )
+        raise LLMError("The AI provider returned an error.") from exc
     except (requests.RequestException, KeyError, ValueError) as exc:
-        logger.warning("LLM call failed: %s", exc)
+        logger.error("LLM call failed: %s: %s", type(exc).__name__, exc)
         raise LLMError("The AI provider is unavailable.") from exc
 
 
