@@ -54,6 +54,7 @@ class Command(BaseCommand):
                         "interest_tags": tags,
                         "best_season": row.get("best_season", "").strip(),
                         "region": row.get("region", "").strip(),
+                        "state": row.get("state", "").strip(),
                         "image_url": row.get("image_url", "").strip(),
                         # Gallery extras beyond the card thumbnail above, same
                         # deterministic placeholder convention, distinct seeds.
