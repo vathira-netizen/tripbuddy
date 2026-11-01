@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 
 import { ApiError } from "@/lib/api";
 import { formatINR } from "@/lib/discover";
@@ -25,11 +26,18 @@ function Sparkles({ className = "" }: { className?: string }) {
   );
 }
 
+const FLAG_LABELS: Record<string, string> = {
+  cost_high: "Unusually expensive for this destination's typical spend",
+  cost_low: "Unusually cheap for this destination's typical spend — double-check it's real",
+};
+
 export default function AiItineraryPanel({
   tripId,
+  hasBudget,
   onApplied,
 }: {
   tripId: number;
+  hasBudget: boolean;
   onApplied: () => void;
 }) {
   const [style, setStyle] = useState("");
@@ -127,6 +135,16 @@ export default function AiItineraryPanel({
         </button>
       </div>
 
+      {!hasBudget && (
+        <p className="rounded-xl bg-[#fdf3e0] px-4 py-2.5 text-xs text-[#8a5a00]">
+          No budget set for this trip — the AI will plan freely with no cost target.{" "}
+          <Link href={`/trips/${tripId}/budget`} className="font-semibold underline">
+            Set a budget
+          </Link>{" "}
+          first to have it flag over-budget days.
+        </p>
+      )}
+
       {generating && (
         <p role="status" className="text-xs text-text-subtle">
           Drafting your personalized itinerary with AI…
@@ -158,6 +176,21 @@ export default function AiItineraryPanel({
 
       {draft && (
         <div className="space-y-3 rounded-2xl border border-line bg-surface p-4">
+          <p className="text-xs text-text-subtle">
+            {draft.disclaimer}{" "}
+            {draft.grounded
+              ? "Costs are checked against this destination's profile."
+              : "This destination has no cost profile on file, so costs aren't cross-checked."}
+          </p>
+
+          {draft.advisories.length > 0 && (
+            <div className="space-y-1 rounded-xl bg-[#fdf3e0] px-3 py-2 text-xs text-[#8a5a00]">
+              {draft.advisories.map((advisory, i) => (
+                <p key={i}>{advisory}</p>
+              ))}
+            </div>
+          )}
+
           {/* Budget bar */}
           <div>
             <div className="mb-1 flex items-center justify-between text-xs">
@@ -217,6 +250,19 @@ export default function AiItineraryPanel({
                           {item.category}
                           {item.location && ` · ${item.location}`}
                         </p>
+                        {item.flags.length > 0 && (
+                          <p className="mt-1 flex flex-wrap gap-1">
+                            {item.flags.map((flag) => (
+                              <span
+                                key={flag}
+                                title={FLAG_LABELS[flag] ?? flag}
+                                className="rounded-full bg-[#fdf3e0] px-2 py-0.5 text-[10px] font-semibold text-[#8a5a00]"
+                              >
+                                ⚠ {flag === "cost_high" ? "pricier than usual" : flag === "cost_low" ? "cheaper than usual" : flag}
+                              </span>
+                            ))}
+                          </p>
+                        )}
                         {item.notes && (
                           <p className="mt-1 text-xs text-text-subtle">{item.notes}</p>
                         )}

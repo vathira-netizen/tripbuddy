@@ -29,6 +29,7 @@ import {
 } from "@/lib/trips";
 import ItineraryBoard from "@/components/ItineraryBoard";
 import AiItineraryPanel from "@/components/AiItineraryPanel";
+import TripAssistantPanel from "@/components/TripAssistantPanel";
 import TripCoverUpload from "@/components/TripCoverUpload";
 import { FormError } from "@/components/ui";
 
@@ -405,10 +406,15 @@ export default function TripPlannerPage() {
       <div className="print:hidden">
         <AiItineraryPanel
           tripId={tripId}
+          hasBudget={trip.target_amount != null}
           onApplied={() => {
             listItineraryItems(tripId).then(setItems).catch(() => {});
           }}
         />
+      </div>
+
+      <div className="print:hidden">
+        <TripAssistantPanel tripId={tripId} />
       </div>
 
       {/* Booking hand-off */}
