@@ -16,9 +16,11 @@ from apps.budgets.models import BudgetItem
 from apps.common.permissions import IsTripMember, IsTripOwner, is_trip_member
 from apps.common.querysets import visible_itinerary_items, visible_trips
 from apps.trips import ai_service
+from apps.trips.llm import ItineraryParseError
 from apps.trips.models import ItineraryItem, Trip, TripCollaborator, TripJoinRequest
 from apps.trips.serializers import (
     ApplyItinerarySerializer,
+    AssistantQuestionSerializer,
     GenerateParamsSerializer,
     InviteSerializer,
     ItineraryItemSerializer,
@@ -216,6 +218,30 @@ class TripViewSet(
                 status=status.HTTP_502_BAD_GATEWAY,
             )
         return Response(draft)
+
+    @extend_schema(
+        summary="Ask the trip assistant a question about this trip and budget",
+        request=AssistantQuestionSerializer,
+    )
+    @action(detail=True, methods=["post"], url_path="ask")
+    def ask(self, request, pk=None):
+        """Owner/collaborators only. Any plan in the reply is budget-checked."""
+        trip = self.get_object()
+        body = AssistantQuestionSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        try:
+            reply = ai_service.ask_assistant(trip, body.validated_data["question"])
+        except ai_service.LLMConfigError:
+            return Response(
+                {"detail": "The assistant is not configured on the server."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except (ai_service.LLMError, ItineraryParseError):
+            return Response(
+                {"detail": "The assistant is unavailable right now. Try again."},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+        return Response(reply)
 
     @extend_schema(
         summary="Persist an accepted AI draft as itinerary items",

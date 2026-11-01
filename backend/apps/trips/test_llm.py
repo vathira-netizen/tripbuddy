@@ -13,6 +13,8 @@ from apps.trips.llm import (
     DraftItem,
     ItineraryParseError,
     build_prompt,
+    check_season_mismatch,
+    flag_cost_outliers,
     parse_itinerary,
     validate_budget,
 )
@@ -116,3 +118,102 @@ def test_validate_budget_over_flags_priciest_items():
 def test_validate_budget_none_target_never_over():
     report = validate_budget(_plan(9999), None)
     assert report["over_budget"] is False
+
+
+# --- Phase 6.1: grounding facts, cost plausibility, season advisories -------
+
+FACTS = {
+    "name": "Goa",
+    "avg_daily_budget": 2500,
+    "budget_tier": "mid",
+    "interest_tags": ["beach", "nightlife", "food", "adventure"],
+    "best_season": "Nov-Feb",
+}
+
+
+def test_build_prompt_includes_facts_block_when_given():
+    prompt = build_prompt(
+        "Goa", Decimal("2000"), 2, "2026-09-01 to 2026-09-03",
+        "relaxed", "train", "hostel", facts=FACTS,
+    )
+    assert "Known facts about this destination" in prompt
+    assert "2500" in prompt
+    assert "beach, nightlife, food, adventure" in prompt
+    assert "Nov-Feb" in prompt
+    assert "Do not invent named hotels" in prompt
+
+
+def test_build_prompt_without_facts_omits_grounding_block():
+    prompt = build_prompt("Goa", Decimal("2000"), 2, "dates", "", "", "", facts=None)
+    assert "Known facts about this destination" not in prompt
+
+
+def test_flag_cost_outliers_flags_implausibly_high_stay():
+    # Expected Stay share for Goa (avg_daily_budget=2500) is 2500*0.40=1000;
+    # 5000 is 5x that.
+    days = _plan(5000)
+    days[0].items[0].category = "Stay"
+    flag_cost_outliers(days, FACTS)
+    assert "cost_high" in days[0].items[0].flags
+
+
+def test_flag_cost_outliers_flags_implausibly_low_stay():
+    days = _plan(50)
+    days[0].items[0].category = "Stay"
+    flag_cost_outliers(days, FACTS)
+    assert "cost_low" in days[0].items[0].flags
+
+
+def test_flag_cost_outliers_leaves_plausible_items_unflagged():
+    days = _plan(900)
+    days[0].items[0].category = "Stay"
+    flag_cost_outliers(days, FACTS)
+    assert days[0].items[0].flags == []
+
+
+def test_flag_cost_outliers_noop_without_facts():
+    days = _plan(999999)
+    flag_cost_outliers(days, None)
+    assert days[0].items[0].flags == []
+
+
+def test_check_season_mismatch_flags_out_of_season_trip():
+    import datetime as dt
+
+    advisory = check_season_mismatch(
+        FACTS, dt.date(2026, 6, 1), dt.date(2026, 6, 5)
+    )
+    assert advisory is not None
+    assert "Goa" in advisory
+    assert "Nov-Feb" in advisory
+
+
+def test_check_season_mismatch_silent_when_in_season():
+    import datetime as dt
+
+    advisory = check_season_mismatch(
+        FACTS, dt.date(2026, 12, 1), dt.date(2026, 12, 5)
+    )
+    assert advisory is None
+
+
+def test_check_season_mismatch_silent_when_range_wraps_year_and_matches():
+    import datetime as dt
+
+    # Nov-Feb wraps the year boundary; January should still count as in-season.
+    advisory = check_season_mismatch(
+        FACTS, dt.date(2026, 1, 10), dt.date(2026, 1, 15)
+    )
+    assert advisory is None
+
+
+def test_check_season_mismatch_none_without_facts_or_dates():
+    import datetime as dt
+
+    assert check_season_mismatch(None, dt.date(2026, 6, 1), dt.date(2026, 6, 5)) is None
+    assert check_season_mismatch(FACTS, None, None) is None
+
+
+def test_draft_item_to_dict_includes_flags():
+    item = DraftItem("Hostel", "Stay", Decimal("600"), flags=["cost_low"])
+    assert item.to_dict()["flags"] == ["cost_low"]
