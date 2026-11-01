@@ -158,10 +158,7 @@ export const blockTraveller = (supabaseUserId: string) =>
 export const cancelConnection = (id: number) =>
   api.delete<void>(`/api/connections/${id}/`);
 
-/**
- * Initials for the avatar placeholder. Profiles have no photo field yet, so
- * every avatar is generated from the display name.
- */
+/** Initials for the avatar placeholder, used when a profile has no avatar_url. */
 export function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "?";

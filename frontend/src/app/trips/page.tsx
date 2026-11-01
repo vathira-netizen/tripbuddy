@@ -44,6 +44,7 @@ function TripsInner() {
   const [destination, setDestination] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [budget, setBudget] = useState("");
   const [openToJoin, setOpenToJoin] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -87,6 +88,7 @@ function TripsInner() {
         destination: destination ? Number(destination) : null,
         start_date: startDate || null,
         end_date: endDate || null,
+        target_amount: budget || null,
       });
       if (openToJoin) {
         trip = await openTripToJoin(trip.id);
@@ -96,6 +98,7 @@ function TripsInner() {
       setDestination("");
       setStartDate("");
       setEndDate("");
+      setBudget("");
       setOpenToJoin(false);
     } catch {
       setError("Couldn't create the trip. Check the dates and try again.");
@@ -155,6 +158,15 @@ function TripsInner() {
             onChange={(e) => setEndDate(e.target.value)}
           />
         </div>
+        <Input
+          label="Budget (optional)"
+          type="number"
+          min="0"
+          step="0.01"
+          value={budget}
+          onChange={(e) => setBudget(e.target.value)}
+          placeholder="e.g. 15000"
+        />
         <label className="flex items-center gap-2 text-sm text-brand-teal">
           <input
             type="checkbox"
