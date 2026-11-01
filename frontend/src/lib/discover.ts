@@ -12,6 +12,7 @@ export interface Destination {
   interest_tags: string[];
   best_season: string;
   region: string;
+  state: string;
   image_url: string;
   /** Extra gallery photos beyond image_url, same placeholder convention. */
   image_urls: string[];
@@ -52,6 +53,49 @@ export const REGIONS = [
   "Islands",
 ] as const;
 
+export const STATES = [
+  "Andaman and Nicobar Islands",
+  "Arunachal Pradesh",
+  "Assam",
+  "Goa",
+  "Gujarat",
+  "Himachal Pradesh",
+  "Karnataka",
+  "Kerala",
+  "Ladakh",
+  "Madhya Pradesh",
+  "Maharashtra",
+  "Meghalaya",
+  "Puducherry",
+  "Punjab",
+  "Rajasthan",
+  "Sikkim",
+  "Tamil Nadu",
+  "Uttar Pradesh",
+  "Uttarakhand",
+  "West Bengal",
+] as const;
+
+// Starting cities for the distance shortlist (lat, lng).
+export const START_CITIES: Record<string, [number, number]> = {
+  Ahmedabad: [23.0225, 72.5714],
+  Bengaluru: [12.9716, 77.5946],
+  Bhopal: [23.2599, 77.4126],
+  Chandigarh: [30.7333, 76.7794],
+  Chennai: [13.0827, 80.2707],
+  Delhi: [28.6139, 77.209],
+  Guwahati: [26.1445, 91.7362],
+  Hyderabad: [17.385, 78.4867],
+  Jaipur: [26.9124, 75.7873],
+  Kochi: [9.9312, 76.2673],
+  Kolkata: [22.5726, 88.3639],
+  Lucknow: [26.8467, 80.9462],
+  Mumbai: [19.076, 72.8777],
+  Pune: [18.5204, 73.8567],
+};
+
+export const DISTANCE_LIMITS = [100, 250, 500, 1000, 2000] as const;
+
 export const TIER_LABELS: Record<Destination["budget_tier"], string> = {
   budget: "Budget",
   mid: "Mid-range",
@@ -71,6 +115,7 @@ export interface DestinationFilters {
   minBudget?: number;
   maxBudget?: number;
   region?: string;
+  state?: string;
   interests?: string[];
   ordering?: string;
 }
@@ -80,6 +125,7 @@ function buildQuery(f: DestinationFilters): string {
   if (f.minBudget) q.set("min_budget", String(f.minBudget));
   if (f.maxBudget) q.set("max_budget", String(f.maxBudget));
   if (f.region) q.set("region", f.region);
+  if (f.state) q.set("state", f.state);
   if (f.interests?.length) q.set("interests", f.interests.join(","));
   if (f.ordering) q.set("ordering", f.ordering);
   const s = q.toString();

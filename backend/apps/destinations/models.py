@@ -26,6 +26,7 @@ class Destination(models.Model):
 
     # Used by the Phase 2 region filter.
     region = models.CharField(max_length=60, blank=True)
+    state = models.CharField(max_length=60, blank=True, db_index=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -41,7 +41,7 @@ def client(settings_secret):
     return c
 
 
-def make_dest(slug, lat, lng, budget=1500, tier="budget", tags=None, region="North"):
+def make_dest(slug, lat, lng, budget=1500, tier="budget", tags=None, region="North", state=""):
     return Destination.objects.create(
         name=slug.title(),
         slug=slug,
@@ -50,6 +50,7 @@ def make_dest(slug, lat, lng, budget=1500, tier="budget", tags=None, region="Nor
         budget_tier=tier,
         interest_tags=tags or ["nature"],
         region=region,
+        state=state,
     )
 
 
@@ -229,3 +230,12 @@ def test_saved_list_is_per_user(settings_secret):
     me = APIClient()
     me.credentials(HTTP_AUTHORIZATION=f"Bearer {make_token(email='b@x.com')}")
     assert me.get("/api/saved-destinations/").data["results"] == []
+
+
+@pytest.mark.django_db
+def test_state_filter(client):
+    make_dest("gokarna", 14.5, 74.3, region="South", state="Karnataka")
+    make_dest("goa", 15.3, 74.1, region="West", state="Goa")
+    res = client.get("/api/destinations/?state=karnataka")
+    assert [d["slug"] for d in res.json()["results"]] == ["gokarna"]
+    assert res.json()["results"][0]["state"] == "Karnataka"

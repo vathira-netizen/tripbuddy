@@ -15,6 +15,9 @@ import {
   listSaved,
   nearbyDestinations,
   REGIONS,
+  STATES,
+  START_CITIES,
+  DISTANCE_LIMITS,
   saveDestination,
   TIER_LABELS,
   unsaveDestination,
@@ -58,6 +61,9 @@ function DiscoverInner() {
   const minBudget = Number(params.get("min") ?? BUDGET_MIN);
   const maxBudget = Number(params.get("max") ?? BUDGET_MAX);
   const region = params.get("region") ?? "";
+  const state = params.get("state") ?? "";
+  const from = params.get("from") ?? ""; // start city; empty = profile area
+  const km = Number(params.get("km") ?? 500);
   const interests = useMemo(
     () => (params.get("interests")?.split(",").filter(Boolean) ?? []),
     [params],
@@ -99,20 +105,23 @@ function DiscoverInner() {
       setLoading(true);
       setError(null);
       if (sort === "proximity") {
+        const city = START_CITIES[from];
+        if (city) return nearbyDestinations(city[0], city[1], km);
         const me = await api.get<{ area: { lat: number; lng: number } | null }>(
           "/api/profile/me/",
         );
         if (!me.area) {
           throw new Error(
-            "Add your city in your profile to sort by distance.",
+            "Pick a starting city, or add your city in your profile.",
           );
         }
-        return nearbyDestinations(me.area.lat, me.area.lng);
+        return nearbyDestinations(me.area.lat, me.area.lng, km);
       }
       return listDestinations({
         minBudget,
         maxBudget,
         region: region || undefined,
+        state: state || undefined,
         interests,
         ordering: "avg_daily_budget",
       });
@@ -130,6 +139,7 @@ function DiscoverInner() {
                   d.avg_daily_budget >= minBudget &&
                   d.avg_daily_budget <= maxBudget &&
                   (!region || d.region.toLowerCase() === region.toLowerCase()) &&
+                  (!state || d.state.toLowerCase() === state.toLowerCase()) &&
                   (interests.length === 0 ||
                     interests.some((t) => d.interest_tags.includes(t))),
               )
@@ -142,7 +152,7 @@ function DiscoverInner() {
     return () => {
       cancelled = true;
     };
-  }, [minBudget, maxBudget, region, interests, sort]);
+  }, [minBudget, maxBudget, region, state, interests, sort, from, km]);
 
   async function toggleSave(d: Destination) {
     const existing = savedByDest[d.id];
@@ -253,6 +263,21 @@ function DiscoverInner() {
             </Select>
           </div>
 
+          <div className="min-w-[150px]">
+            <Select
+              label="State"
+              value={state}
+              onChange={(e) => setParam({ state: e.target.value })}
+            >
+              <option value="">All states</option>
+              {STATES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </Select>
+          </div>
+
           <TagPicker
             legend="Interests"
             options={INTEREST_TAGS}
@@ -264,6 +289,38 @@ function DiscoverInner() {
               setParam({ interests: next.join(",") });
             }}
           />
+
+          {sort === "proximity" && (
+            <>
+              <div className="min-w-[150px]">
+                <Select
+                  label="Starting city"
+                  value={from}
+                  onChange={(e) => setParam({ from: e.target.value })}
+                >
+                  <option value="">My profile area</option>
+                  {Object.keys(START_CITIES).map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div className="min-w-[130px]">
+                <Select
+                  label="Within"
+                  value={String(km)}
+                  onChange={(e) => setParam({ km: e.target.value })}
+                >
+                  {DISTANCE_LIMITS.map((d) => (
+                    <option key={d} value={d}>
+                      {d} km
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            </>
+          )}
 
           {/* Segmented control: the active option is a white pill on a warm track. */}
           <fieldset className="ml-auto">
