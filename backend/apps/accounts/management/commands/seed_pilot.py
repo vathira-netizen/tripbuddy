@@ -183,8 +183,10 @@ class Command(BaseCommand):
             first = rng.choice(FIRST_NAMES)
             female = first in FEMALE_NAMES
             name = f"{first} {rng.choice(LAST_NAMES)}"
+            # Keyed on the index (not the rng) so no two pilot users share a
+            # face; the portrait set has 100 per gender and the cap is 100.
             avatar_url = PORTRAIT_URL.format(
-                kind="women" if female else "men", n=rng.randint(0, 99)
+                kind="women" if female else "men", n=index % 100
             )
             interests = rng.sample(INTEREST_TAGS, rng.randint(3, 6))
             languages = rng.sample(LANGUAGES, rng.randint(1, 3))
