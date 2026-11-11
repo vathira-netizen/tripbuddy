@@ -24,7 +24,7 @@ import {
   unsaveDestination,
 } from "@/lib/discover";
 import { INTEREST_TAGS } from "@/lib/vocab";
-import { Select, TagPicker } from "@/components/ui";
+import { MultiSelectDropdown, Select } from "@/components/ui";
 import WelcomeWalkthrough from "@/components/WelcomeWalkthrough";
 
 // Leaflet touches window on import, so the map is client-only.
@@ -32,6 +32,13 @@ const DestinationMap = dynamic(() => import("@/components/DestinationMap"), {
   ssr: false,
   loading: () => <div className="h-full w-full animate-pulse bg-black/5" />,
 });
+
+// Neutral placeholder shown if a destination photo fails to load.
+const FALLBACK_IMG =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(
+    "<svg xmlns='http://www.w3.org/2000/svg' width='600' height='400'><rect width='100%' height='100%' fill='#e7e3d8'/><text x='50%' y='50%' fill='#8a8a80' font-family='sans-serif' font-size='28' text-anchor='middle'>Photo unavailable</text></svg>",
+  );
 
 const BUDGET_MIN = 500;
 const BUDGET_MAX = 5000;
@@ -292,8 +299,8 @@ function DiscoverInner() {
             </Select>
           </div>
 
-          <TagPicker
-            legend="Interests"
+          <MultiSelectDropdown
+            label="Interests"
             options={INTEREST_TAGS}
             selected={interests}
             onToggle={(tag) => {
@@ -302,6 +309,7 @@ function DiscoverInner() {
                 : [...interests, tag];
               setParam({ interests: next.join(",") });
             }}
+            onClear={() => setParam({ interests: null })}
           />
 
           {sort === "proximity" && (
@@ -419,7 +427,11 @@ function DiscoverInner() {
 
               <div className="relative h-[160px] w-full overflow-hidden">
                 <Image
-                  src={d.image_url}
+                  src={d.image_url || FALLBACK_IMG}
+                  onError={(e) => {
+                    const img = e.currentTarget;
+                    if (!img.src.endsWith(FALLBACK_IMG)) img.src = FALLBACK_IMG;
+                  }}
                   alt={d.name}
                   width={600}
                   height={400}

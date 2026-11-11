@@ -6,14 +6,16 @@ import { toast } from "sonner";
 
 import {
   acceptConnection,
-  avatarTint,
+  BuddyCandidate,
   blockConnection,
   cancelConnection,
   Connection,
   declineConnection,
-  initials,
+  listBuddies,
   listConnections,
+  sendConnectionRequest,
 } from "@/lib/buddies";
+import { Avatar } from "@/components/Avatar";
 import { FormError } from "@/components/ui";
 
 type Tab = "received" | "sent";
@@ -25,6 +27,27 @@ export default function ConnectionsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<number | null>(null);
+  const [suggestions, setSuggestions] = useState<BuddyCandidate[]>([]);
+
+  // "People you may know": the top compatibility matches who aren't already
+  // connected (the buddies API excludes those). Best-effort — a missing home
+  // area or a network blip just hides the section.
+  useEffect(() => {
+    listBuddies({ radiusKm: 500 })
+      .then((page) => setSuggestions(page.results.slice(0, 5)))
+      .catch(() => {});
+  }, []);
+
+  async function addSuggestion(c: BuddyCandidate) {
+    try {
+      const created = await sendConnectionRequest(c.supabase_user_id);
+      setSuggestions((cur) => cur.filter((x) => x.supabase_user_id !== c.supabase_user_id));
+      setSent((cur) => [created, ...cur]);
+      toast.success(`Request sent to ${c.display_name}`);
+    } catch {
+      toast.error("Couldn't send that request. Try again.");
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -138,6 +161,46 @@ export default function ConnectionsPage() {
       ) : (
         <SentList requests={sent} busy={busy} onCancel={cancel} />
       )}
+
+      {suggestions.length > 0 && (
+        <section aria-labelledby="suggested-heading" className="mt-10">
+          <h2 id="suggested-heading" className="text-2xl leading-none tracking-tight">
+            Suggested buddies
+          </h2>
+          <p className="mt-1.5 text-sm text-text-subtle">
+            Travellers near you whose interests and budget fit yours.
+          </p>
+          <ul className="mt-4 space-y-3">
+            {suggestions.map((c) => (
+              <li
+                key={c.supabase_user_id}
+                className="flex items-center gap-3 rounded-2xl border border-line bg-surface p-4"
+              >
+                <Avatar name={c.display_name} src={c.avatar_url} seed={c.supabase_user_id} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-serif text-base text-brand-teal">
+                    {c.display_name}
+                  </p>
+                  <p className="truncate text-xs text-text-subtle">
+                    {c.area_label || "Area not set"}
+                    {c.interests.length > 0 && ` · ${c.interests.slice(0, 3).join(", ")}`}
+                  </p>
+                </div>
+                <span className="shrink-0 rounded-full bg-brand-coral-tint px-2 py-0.5 text-xs font-bold text-brand-coral-ink">
+                  {Math.round(c.score)}% match
+                </span>
+                <button
+                  type="button"
+                  onClick={() => addSuggestion(c)}
+                  className="shrink-0 rounded-full bg-brand-teal px-3.5 py-1.5 text-xs font-bold text-background transition hover:brightness-90"
+                >
+                  Add buddy
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </main>
   );
 }
@@ -173,14 +236,11 @@ function ReceivedList({
           key={request.id}
           className="flex items-start gap-3 rounded-2xl border border-line bg-surface p-4"
         >
-          <span
-            aria-hidden="true"
-            className={`grid h-11 w-11 shrink-0 place-items-center rounded-full text-sm font-bold ${avatarTint(
-              request.other?.supabase_user_id ?? String(request.id),
-            )}`}
-          >
-            {initials(request.other?.display_name ?? "?")}
-          </span>
+          <Avatar
+            name={request.other?.display_name ?? "?"}
+            src={request.other?.avatar_url}
+            seed={request.other?.supabase_user_id ?? String(request.id)}
+          />
           <div className="min-w-0 flex-1">
             <p className="truncate font-serif text-base text-brand-teal">
               {request.other?.display_name ?? "A traveller"}
@@ -252,14 +312,11 @@ function SentList({
           key={request.id}
           className="flex items-center gap-3 rounded-2xl border border-line bg-surface p-4"
         >
-          <span
-            aria-hidden="true"
-            className={`grid h-11 w-11 shrink-0 place-items-center rounded-full text-sm font-bold ${avatarTint(
-              request.other?.supabase_user_id ?? String(request.id),
-            )}`}
-          >
-            {initials(request.other?.display_name ?? "?")}
-          </span>
+          <Avatar
+            name={request.other?.display_name ?? "?"}
+            src={request.other?.avatar_url}
+            seed={request.other?.supabase_user_id ?? String(request.id)}
+          />
           <div className="min-w-0 flex-1">
             <p className="truncate font-serif text-base text-brand-teal">
               {request.other?.display_name ?? "A traveller"}
