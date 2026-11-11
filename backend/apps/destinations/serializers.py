@@ -35,6 +35,8 @@ class DestinationSerializer(serializers.ModelSerializer):
             "state",
             "image_url",
             "image_urls",
+            "image_credit",
+            "description",
             "distance_km",
             "avg_rating",
             "review_count",

@@ -23,6 +23,11 @@ class Destination(models.Model):
     image_urls = ArrayField(
         models.URLField(max_length=500), default=list, blank=True
     )
+    # Photos come from Wikipedia/Wikimedia Commons (free licences that require
+    # credit); this is the source page the UI links its "Photo" credit to.
+    image_credit = models.URLField(max_length=500, blank=True)
+    # Short, our own wording — shown on the detail page and to the assistant.
+    description = models.TextField(blank=True)
 
     # Used by the Phase 2 region filter.
     region = models.CharField(max_length=60, blank=True)

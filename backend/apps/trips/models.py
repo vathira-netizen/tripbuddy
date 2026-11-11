@@ -133,3 +133,50 @@ class ItineraryItem(models.Model):
 
     def __str__(self):
         return f"D{self.day_index}: {self.title}"
+
+
+class Conversation(models.Model):
+    """A chat with the trip assistant. Private to its owner; may be linked to
+    a trip once the user turns it into one."""
+
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="conversations"
+    )
+    trip = models.ForeignKey(
+        Trip, on_delete=models.SET_NULL, null=True, blank=True, related_name="conversations"
+    )
+    title = models.CharField(max_length=120, blank=True)
+    # What the assistant has pulled out of the chat so far:
+    # {destination, days, travellers, budget} — drives the header chips and
+    # pre-fills "Create trip".
+    context = models.JSONField(default=dict, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+
+    def __str__(self):
+        return self.title or f"Chat {self.pk}"
+
+
+class ChatMessage(models.Model):
+    class Role(models.TextChoices):
+        USER = "user", "User"
+        ASSISTANT = "assistant", "Assistant"
+
+    conversation = models.ForeignKey(
+        Conversation, on_delete=models.CASCADE, related_name="messages"
+    )
+    role = models.CharField(max_length=10, choices=Role.choices)
+    content = models.TextField()
+    # Assistant extras: {places: [slug], plan: {...}, follow_up: str}.
+    data = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+
+    def __str__(self):
+        return f"{self.role}: {self.content[:40]}"
