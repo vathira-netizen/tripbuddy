@@ -31,11 +31,15 @@ function numberedIcon(n: number, active: boolean) {
 // India-ish default view when there's nothing to fit to.
 const INDIA_CENTER: [number, number] = [22.35, 78.66];
 
-/** Pans/zooms the map to the selected destination without a full remount. */
+/** Brings the selected destination into view. Its marker turns coral; the map
+ * only pans when it's off-screen, so hovering down a list doesn't bounce the
+ * zoom on every card. */
 function FocusMarker({ target }: { target: Destination | null }) {
   const map = useMap();
   useEffect(() => {
-    if (target) map.flyTo([target.lat, target.lng], 8, { duration: 0.6 });
+    if (target && !map.getBounds().contains([target.lat, target.lng])) {
+      map.panTo([target.lat, target.lng], { duration: 0.4 });
+    }
   }, [target, map]);
   return null;
 }

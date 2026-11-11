@@ -1,0 +1,36 @@
+# Local-database override: the backend talks to a throwaway PostGIS container
+# instead of the shared Supabase Postgres, so feature-branch migrations can't
+# touch real data. Auth still goes through Supabase (JWTs are only verified).
+#
+#   docker compose -f docker-compose.yml -f docker-compose.localdb.yml up --build -d
+#   docker compose -f docker-compose.yml -f docker-compose.localdb.yml exec backend python manage.py seed_destinations
+#
+# LOCAL_DB_IMAGE defaults to postgis/postgis; set it to tb-testdb-img on
+# machines where that registry image won't pull.
+services:
+  db:
+    image: ${LOCAL_DB_IMAGE:-postgis/postgis:16-3.4}
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: tripbuddy
+      # Makes initdb pick UTF8 (tb-testdb-img otherwise defaults to SQL_ASCII).
+      LANG: C.UTF-8
+    volumes:
+      - localdb:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "tripbuddy"]
+      interval: 3s
+      retries: 20
+
+  backend:
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/tripbuddy
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  localdb:

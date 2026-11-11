@@ -3,9 +3,9 @@
 import { FormEvent, useState } from "react";
 
 import { ApiError } from "@/lib/api";
-import { formatINR } from "@/lib/discover";
 import { askAssistant, AssistantReply } from "@/lib/trips";
 import { Button, FormError, Input } from "@/components/ui";
+import PlanSummary from "@/components/PlanSummary";
 
 interface Turn {
   question: string;
@@ -59,32 +59,7 @@ export default function TripAssistantPanel({ tripId }: { tripId: number }) {
           <li key={i} className="space-y-2">
             <p className="text-sm font-semibold">{t.question}</p>
             <p className="whitespace-pre-line text-sm">{t.reply.answer}</p>
-            {t.reply.plan && (
-              <div
-                className={`rounded-xl border p-3 text-sm ${
-                  t.reply.plan.over_budget
-                    ? "border-red-300 bg-red-50 text-red-900"
-                    : "border-line bg-[#efece4]"
-                }`}
-              >
-                <p className="font-bold">
-                  Suggested plan: {formatINR(Number(t.reply.plan.total))}
-                  {t.reply.plan.target != null &&
-                    ` of ${formatINR(Number(t.reply.plan.target))}`}
-                  {t.reply.plan.over_budget && " — over budget"}
-                </p>
-                <ol className="mt-1 list-decimal pl-5">
-                  {t.reply.plan.days.map((d, di) => (
-                    <li key={di}>
-                      {d.items
-                        .map((it) => `${it.title} (${formatINR(Number(it.est_cost))})`)
-                        .join(", ")}
-                    </li>
-                  ))}
-                </ol>
-                <p className="mt-1 text-xs">{t.reply.plan.disclaimer}</p>
-              </div>
-            )}
+            {t.reply.plan && <PlanSummary plan={t.reply.plan} />}
           </li>
         ))}
       </ul>

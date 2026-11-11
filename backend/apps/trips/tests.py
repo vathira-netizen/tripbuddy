@@ -1,3 +1,4 @@
+import json
 import uuid
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -687,3 +688,149 @@ def test_ask_assistant_503_when_unconfigured(client, settings):
     trip_id = client.post("/api/trips/", {"title": "Goa"}, format="json").data["id"]
     resp = client.post(f"/api/trips/{trip_id}/ask/", {"question": "hi"}, format="json")
     assert resp.status_code == 503
+
+
+# --- Trip assistant chat (Phase A) -----------------------------------------
+
+CHAT_REPLY = json.dumps(
+    {
+        "title": "Budget Hampi weekend",
+        "answer": "**Hampi** works on that budget.",
+        "context": {"destination": "Hampi", "days": 3, "travellers": 2, "budget": 5000},
+        "places": ["hampi", "not-a-real-slug", "hampi"],
+        "plan": {"days": [{"items": [
+            {"title": "Hostel", "category": "Stay", "est_cost": 4000},
+            {"title": "Food", "category": "Food", "est_cost": 2000},
+        ]}]},
+        "follow_up": "Where are you starting from?",
+    }
+)
+
+
+@pytest.fixture
+def hampi(db):
+    from django.contrib.gis.geos import Point
+
+    from apps.destinations.models import Destination
+
+    return Destination.objects.create(
+        name="Hampi", slug="hampi", point=Point(76.46, 15.335, srid=4326),
+        avg_daily_budget=900, budget_tier="budget", state="Karnataka",
+    )
+
+
+@pytest.mark.django_db
+def test_chat_create_saves_turn_and_validates_reply(client, hampi, monkeypatch):
+    monkeypatch.setattr("apps.trips.ai_service.call_llm", lambda messages: CHAT_REPLY)
+    resp = client.post("/api/chats/", {"message": "3 days in Hampi for 5000?"}, format="json")
+
+    assert resp.status_code == 201
+    assert resp.data["title"] == "Budget Hampi weekend"
+    assert resp.data["context"] == {"destination": "Hampi", "days": 3, "travellers": 2, "budget": 5000}
+    user_msg, bot_msg = resp.data["messages"]
+    assert user_msg["role"] == "user" and bot_msg["role"] == "assistant"
+    # Unknown and duplicate slugs are dropped; known ones carry map data.
+    assert [p["slug"] for p in bot_msg["data"]["places"]] == ["hampi"]
+    assert bot_msg["data"]["places"][0]["lat"] == pytest.approx(15.335)
+    # 6000 against the chat's own 5000 budget: flagged, not hidden.
+    assert bot_msg["data"]["plan"]["over_budget"] is True
+    assert bot_msg["data"]["follow_up"] == "Where are you starting from?"
+
+
+@pytest.mark.django_db
+def test_chat_follow_up_sends_history(client, hampi, monkeypatch):
+    seen = []
+
+    def fake(messages):
+        seen.append(messages)
+        return CHAT_REPLY
+
+    monkeypatch.setattr("apps.trips.ai_service.call_llm", fake)
+    chat_id = client.post("/api/chats/", {"message": "first"}, format="json").data["id"]
+    resp = client.post(f"/api/chats/{chat_id}/messages/", {"message": "cheaper?"}, format="json")
+
+    assert resp.status_code == 200
+    assert len(resp.data["messages"]) == 4
+    roles = [m["role"] for m in seen[1]]
+    assert roles == ["system", "user", "assistant", "user"]
+    assert seen[1][-1]["content"] == "cheaper?"
+
+
+@pytest.mark.django_db
+def test_chat_provider_failure_saves_nothing(client, monkeypatch):
+    from apps.trips import ai_service
+    from apps.trips.models import Conversation
+
+    def boom(messages):
+        raise ai_service.LLMError("down")
+
+    monkeypatch.setattr("apps.trips.ai_service.call_llm", boom)
+    resp = client.post("/api/chats/", {"message": "hi"}, format="json")
+    assert resp.status_code == 502
+    assert not Conversation.objects.exists()
+
+
+@pytest.mark.django_db
+def test_chat_503_when_unconfigured(client, settings):
+    settings.GROQ_API_KEY = ""
+    assert client.post("/api/chats/", {"message": "hi"}, format="json").status_code == 503
+
+
+@pytest.mark.django_db
+def test_chats_are_private_and_trip_link_checked(client, settings_secret, monkeypatch):
+    monkeypatch.setattr("apps.trips.ai_service.call_llm", lambda messages: CHAT_REPLY)
+    chat_id = client.post("/api/chats/", {"message": "hi"}, format="json").data["id"]
+
+    stranger = authed_client(str(uuid.uuid4()), "stranger@example.com")
+    assert stranger.get(f"/api/chats/{chat_id}/").status_code == 404
+    assert stranger.get("/api/chats/").data["results"] == []
+
+    their_trip = stranger.post("/api/trips/", {"title": "Theirs"}, format="json").data["id"]
+    resp = client.patch(f"/api/chats/{chat_id}/", {"trip": their_trip}, format="json")
+    assert resp.status_code == 400
+
+    my_trip = client.post("/api/trips/", {"title": "Mine"}, format="json").data["id"]
+    resp = client.patch(f"/api/chats/{chat_id}/", {"trip": my_trip, "title": "Renamed"}, format="json")
+    assert resp.status_code == 200
+    assert resp.data["trip_title"] == "Mine" and resp.data["title"] == "Renamed"
+
+
+def test_parse_chat_reply_drops_bad_context():
+    from apps.trips.llm import parse_chat_reply
+
+    reply = parse_chat_reply(
+        '{"answer": "ok", "context": {"days": "lots", "travellers": 500, "budget": "4000"}}'
+    )
+    assert reply["context"] == {"budget": 4000}
+    assert reply["places"] == [] and reply["days"] is None and reply["follow_up"] is None
+
+
+def test_parse_chat_reply_unwraps_list():
+    from apps.trips.llm import parse_chat_reply
+
+    assert parse_chat_reply('[{"answer": "hi"}]')["answer"] == "hi"
+
+
+@pytest.mark.django_db
+def test_catalogue_data_details_what_the_chat_is_about():
+    from django.contrib.gis.geos import Point
+
+    from apps.destinations.models import Destination
+    from apps.trips.ai_service import CATALOGUE_DETAIL_LIMIT, _catalogue_data
+
+    for i in range(CATALOGUE_DETAIL_LIMIT + 5):
+        Destination.objects.create(
+            name=f"Place {i}", slug=f"place-{i}", point=Point(77, 12, srid=4326),
+            avg_daily_budget=1000 + i, budget_tier="budget", state="Karnataka",
+        )
+    Destination.objects.create(
+        name="Ziro", slug="ziro", point=Point(93.8, 27.5, srid=4326),
+        avg_daily_budget=9999, budget_tier="comfort", state="Arunachal Pradesh",
+    )
+    data = _catalogue_data(list(Destination.objects.all()), "thinking about ziro in march")
+
+    detail = data["destinations"][1:]
+    assert len(detail) == CATALOGUE_DETAIL_LIMIT
+    assert detail[0].startswith("ziro|")  # named place first, despite its price
+    assert "ziro" not in data["other_destinations"]
+    assert "place-16 (Karnataka)" in data["other_destinations"]  # priciest padding left out
