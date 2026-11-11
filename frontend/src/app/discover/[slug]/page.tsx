@@ -192,12 +192,24 @@ export default function DestinationDetailPage() {
         )}
       </div>
 
+      {destination.image_credit && (
+        <p className="-mt-4 text-right text-[11px] text-text-subtle">
+          Photos:{" "}
+          <a href={destination.image_credit} target="_blank" rel="noopener noreferrer" className="underline">
+            Wikimedia Commons via Wikipedia
+          </a>
+        </p>
+      )}
+
       <div>
         <h1 className="text-4xl leading-none tracking-tight">{destination.name}</h1>
         <p className="mt-1.5 text-sm text-text-subtle">
-          {destination.region}
+          {destination.state || destination.region}
           {destination.best_season && ` · Best ${destination.best_season}`}
         </p>
+        {destination.description && (
+          <p className="mt-3 max-w-2xl text-base text-foreground">{destination.description}</p>
+        )}
       </div>
 
       {error && <FormError message={error} />}

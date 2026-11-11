@@ -1,5 +1,6 @@
 import csv
 
+from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponse
 from django.utils import timezone
@@ -17,10 +18,20 @@ from apps.common.permissions import IsTripMember, IsTripOwner, is_trip_member
 from apps.common.querysets import visible_itinerary_items, visible_trips
 from apps.trips import ai_service
 from apps.trips.llm import ItineraryParseError
-from apps.trips.models import ItineraryItem, Trip, TripCollaborator, TripJoinRequest
+from apps.trips.models import (
+    ChatMessage,
+    Conversation,
+    ItineraryItem,
+    Trip,
+    TripCollaborator,
+    TripJoinRequest,
+)
 from apps.trips.serializers import (
     ApplyItinerarySerializer,
     AssistantQuestionSerializer,
+    ChatInputSerializer,
+    ConversationListSerializer,
+    ConversationSerializer,
     GenerateParamsSerializer,
     InviteSerializer,
     ItineraryItemSerializer,
@@ -470,6 +481,80 @@ class TripJoinRequestViewSet(
             )
 
         return Response(self.get_serializer(join_request).data)
+
+
+class ConversationViewSet(
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    mixins.DestroyModelMixin,
+    viewsets.GenericViewSet,
+):
+    """Chats with the trip assistant. Private to their owner.
+
+    POST /api/chats/ {message, trip?} starts a chat; POST
+    /api/chats/{id}/messages/ {message} continues it. A turn is saved only if
+    the assistant answered, so a provider failure never leaves a half-turn.
+    Any plan in a reply is budget-checked in apps.trips.ai_service.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return (
+            Conversation.objects.filter(owner=self.request.user)
+            .select_related("trip")
+            .prefetch_related("messages")
+        )
+
+    def get_serializer_class(self):
+        return ConversationListSerializer if self.action == "list" else ConversationSerializer
+
+    @extend_schema(request=ChatInputSerializer, responses={201: ConversationSerializer})
+    def create(self, request):
+        body = ChatInputSerializer(data=request.data, context={"request": request})
+        body.is_valid(raise_exception=True)
+        conversation = Conversation(owner=request.user, trip=body.validated_data.get("trip"))
+        return self._turn(conversation, body.validated_data["message"], status.HTTP_201_CREATED)
+
+    @extend_schema(request=ChatInputSerializer, responses={200: ConversationSerializer})
+    @action(detail=True, methods=["post"])
+    def messages(self, request, pk=None):
+        conversation = self.get_object()
+        body = ChatInputSerializer(data=request.data, context={"request": request})
+        body.is_valid(raise_exception=True)
+        return self._turn(conversation, body.validated_data["message"], status.HTTP_200_OK)
+
+    def _turn(self, conversation, message, ok_status):
+        try:
+            reply = ai_service.chat_reply(conversation, message)
+        except ai_service.LLMConfigError:
+            return Response(
+                {"detail": "The assistant is not configured on the server."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except (ai_service.LLMError, ItineraryParseError):
+            return Response(
+                {"detail": "The assistant is unavailable right now. Try again."},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        with transaction.atomic():
+            conversation.context = reply["context"]
+            if not conversation.title:
+                conversation.title = reply["title"] or message[:60]
+            conversation.save()
+            ChatMessage.objects.create(
+                conversation=conversation, role=ChatMessage.Role.USER, content=message
+            )
+            ChatMessage.objects.create(
+                conversation=conversation,
+                role=ChatMessage.Role.ASSISTANT,
+                content=reply["answer"],
+                data=reply["data"],
+            )
+        conversation = self.get_queryset().get(pk=conversation.pk)
+        return Response(ConversationSerializer(conversation).data, status=ok_status)
 
 
 class PublicSharedTripView(generics.RetrieveAPIView):

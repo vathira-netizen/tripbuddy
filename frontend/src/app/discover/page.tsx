@@ -11,7 +11,8 @@ import { api } from "@/lib/api";
 import {
   Destination,
   formatINR,
-  listDestinations,
+  listDestinationsPage,
+  DISCOVER_PAGE_SIZE,
   listSaved,
   nearbyDestinations,
   REGIONS,
@@ -69,9 +70,11 @@ function DiscoverInner() {
     [params],
   );
   const sort = params.get("sort") ?? "budget"; // "budget" | "proximity"
+  const page = Math.max(Number(params.get("page") ?? 1) || 1, 1);
   const [showWelcome, setShowWelcome] = useState(params.get("welcome") === "1");
 
   const [destinations, setDestinations] = useState<Destination[]>([]);
+  const [total, setTotal] = useState(0);
   const [savedByDest, setSavedByDest] = useState<Record<number, number>>({});
   const [selected, setSelected] = useState<Destination | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -84,6 +87,8 @@ function DiscoverInner() {
         if (value === null || value === "") next.delete(key);
         else next.set(key, value);
       }
+      // Any filter change starts again from page 1.
+      if (!("page" in updates)) next.delete("page");
       router.replace(`/discover?${next.toString()}`, { scroll: false });
     },
     [params, router],
@@ -106,7 +111,7 @@ function DiscoverInner() {
       setError(null);
       if (sort === "proximity") {
         const city = START_CITIES[from];
-        if (city) return nearbyDestinations(city[0], city[1], km);
+        if (city) return { results: await nearbyDestinations(city[0], city[1], km), paged: false };
         const me = await api.get<{ area: { lat: number; lng: number } | null }>(
           "/api/profile/me/",
         );
@@ -115,21 +120,24 @@ function DiscoverInner() {
             "Pick a starting city, or add your city in your profile.",
           );
         }
-        return nearbyDestinations(me.area.lat, me.area.lng, km);
+        return { results: await nearbyDestinations(me.area.lat, me.area.lng, km), paged: false };
       }
-      return listDestinations({
+      const pageData = await listDestinationsPage({
         minBudget,
         maxBudget,
         region: region || undefined,
         state: state || undefined,
         interests,
         ordering: "avg_daily_budget",
+        page,
       });
+      return { results: pageData.results, count: pageData.count, paged: true };
     };
 
     run()
-      .then((rows) => {
+      .then((res) => {
         if (cancelled) return;
+        const rows = res.results;
         // Proximity results come pre-filtered by the API; still apply the
         // budget/region/interest facets client-side so the panel stays live.
         const filtered =
@@ -144,7 +152,15 @@ function DiscoverInner() {
                     interests.some((t) => d.interest_tags.includes(t))),
               )
             : rows;
-        setDestinations(filtered);
+        // The API pages the budget list; nearby results arrive whole, so
+        // they're paged here to keep the grid the same size.
+        if (res.paged) {
+          setDestinations(filtered);
+          setTotal(res.count ?? filtered.length);
+        } else {
+          setDestinations(filtered.slice((page - 1) * DISCOVER_PAGE_SIZE, page * DISCOVER_PAGE_SIZE));
+          setTotal(filtered.length);
+        }
       })
       .catch((e) => !cancelled && setError(e.message ?? "Failed to load destinations."))
       .finally(() => !cancelled && setLoading(false));
@@ -152,7 +168,7 @@ function DiscoverInner() {
     return () => {
       cancelled = true;
     };
-  }, [minBudget, maxBudget, region, state, interests, sort, from, km]);
+  }, [minBudget, maxBudget, region, state, interests, sort, from, km, page]);
 
   async function toggleSave(d: Destination) {
     const existing = savedByDest[d.id];
@@ -195,9 +211,7 @@ function DiscoverInner() {
           <p className="mt-1.5 text-sm text-text-subtle">
             {loading
               ? "Loading destinations…"
-              : `${destinations.length} destination${
-                  destinations.length === 1 ? "" : "s"
-                } within your budget`}
+              : `${total} destination${total === 1 ? "" : "s"} within your budget`}
           </p>
         </div>
         <Link
@@ -351,14 +365,24 @@ function DiscoverInner() {
         </div>
       </div>
 
-      <div className="h-64 overflow-hidden rounded-[20px] border border-line">
+      {/* List on the left, map pinned on the right so it stays in view while
+          the list scrolls (stacked, map first, on narrow screens). */}
+      <div className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.85fr)]">
+      <aside
+        aria-label="Map of these destinations"
+        className="relative z-0 h-64 overflow-hidden rounded-[20px] border border-line lg:sticky lg:top-24 lg:order-2 lg:h-[calc(100vh-8rem)] lg:self-start"
+      >
         <DestinationMap
           destinations={destinations}
           selected={selected}
-          onSelect={setSelected}
+          onSelect={(d) => {
+            setSelected(d);
+            document.getElementById(`dest-${d.id}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          }}
         />
-      </div>
+      </aside>
 
+      <div className="min-w-0 lg:order-1">
       {error && (
         <p
           role="alert"
@@ -368,7 +392,7 @@ function DiscoverInner() {
         </p>
       )}
 
-      <ul className="mt-5 grid gap-[18px] sm:grid-cols-2 lg:grid-cols-3">
+      <ul className="grid gap-[18px] sm:grid-cols-2">
         {destinations.map((d) => {
           const isSaved = d.id in savedByDest;
           const isSelected = selected?.id === d.id;
@@ -377,7 +401,9 @@ function DiscoverInner() {
           return (
             <li
               key={d.id}
+              id={`dest-${d.id}`}
               onMouseEnter={() => setSelected(d)}
+              onFocus={() => setSelected(d)}
               className={`group relative overflow-hidden rounded-[18px] border bg-surface transition hover:-translate-y-0.5 hover:shadow-lg ${
                 isSelected ? "border-brand-coral ring-1 ring-brand-coral" : "border-line"
               }`}
@@ -500,6 +526,38 @@ function DiscoverInner() {
           );
         })}
       </ul>
+
+      {total > DISCOVER_PAGE_SIZE && (
+        <nav aria-label="Destination pages" className="mt-8 flex items-center justify-center gap-3">
+          <button
+            type="button"
+            disabled={page <= 1 || loading}
+            onClick={() => {
+              setParam({ page: page - 1 > 1 ? String(page - 1) : null });
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-brand-teal disabled:opacity-40"
+          >
+            ← Previous
+          </button>
+          <span className="text-sm text-text-subtle" aria-current="page">
+            Page {page} of {Math.ceil(total / DISCOVER_PAGE_SIZE)}
+          </span>
+          <button
+            type="button"
+            disabled={page >= Math.ceil(total / DISCOVER_PAGE_SIZE) || loading}
+            onClick={() => {
+              setParam({ page: String(page + 1) });
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-brand-teal disabled:opacity-40"
+          >
+            Next →
+          </button>
+        </nav>
+      )}
+      </div>
+      </div>
 
       {showWelcome && (
         <WelcomeWalkthrough
