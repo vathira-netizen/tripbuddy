@@ -1,4 +1,6 @@
-import { forwardRef, useId } from "react";
+"use client";
+
+import { forwardRef, useEffect, useId, useRef, useState } from "react";
 import type {
   ButtonHTMLAttributes,
   InputHTMLAttributes,
@@ -164,5 +166,86 @@ export function TagPicker({
         </p>
       )}
     </fieldset>
+  );
+}
+
+/**
+ * A dropdown button that opens a panel of checkboxes — for filters with many
+ * options (e.g. interests) that would otherwise sprawl across the page.
+ */
+export function MultiSelectDropdown({
+  label,
+  options,
+  selected,
+  onToggle,
+  onClear,
+}: {
+  label: string;
+  options: readonly string[];
+  selected: string[];
+  onToggle: (value: string) => void;
+  onClear?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative min-w-[170px]">
+      <span className="text-xs text-text-subtle">{label}</span>
+      <button
+        type="button"
+        aria-haspopup="true"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className="mt-1 flex w-full items-center justify-between gap-2 rounded-lg border border-line-input bg-white px-3 py-2 text-sm text-text-muted hover:border-brand-teal focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-teal"
+      >
+        <span className="truncate">
+          {selected.length === 0 ? "Any interest" : `${selected.length} selected`}
+        </span>
+        <span aria-hidden className="text-[10px]">▾</span>
+      </button>
+      {open && (
+        <div className="absolute left-0 z-30 mt-1 max-h-72 w-60 overflow-y-auto rounded-xl border border-line bg-white p-2 shadow-lg">
+          <ul>
+            {options.map((option) => (
+              <li key={option}>
+                <label className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm capitalize hover:bg-surface-alt">
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(option)}
+                    onChange={() => onToggle(option)}
+                    className="h-4 w-4 accent-brand-teal"
+                  />
+                  {option}
+                </label>
+              </li>
+            ))}
+          </ul>
+          {onClear && selected.length > 0 && (
+            <button
+              type="button"
+              onClick={onClear}
+              className="mt-1 w-full rounded-lg px-2 py-1.5 text-left text-xs font-semibold text-brand-coral-ink hover:bg-brand-coral-tint"
+            >
+              Clear all
+            </button>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
