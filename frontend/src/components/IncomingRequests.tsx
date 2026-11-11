@@ -4,13 +4,12 @@ import { useEffect, useState } from "react";
 
 import {
   acceptConnection,
-  avatarTint,
   blockConnection,
   Connection,
   declineConnection,
-  initials,
   listConnections,
 } from "@/lib/buddies";
+import { Avatar } from "@/components/Avatar";
 
 /**
  * Pending buddy requests addressed to the current user.
@@ -104,14 +103,12 @@ export function IncomingRequests({ onAnswered }: { onAnswered?: () => void }) {
       <ul className="mt-3 space-y-3">
         {requests.map((request) => (
           <li key={request.id} className="flex items-start gap-3">
-            <span
-              aria-hidden="true"
-              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${avatarTint(
-                request.other?.supabase_user_id ?? String(request.id),
-              )}`}
-            >
-              {initials(request.other?.display_name ?? "?")}
-            </span>
+            <Avatar
+              name={request.other?.display_name ?? "?"}
+              src={request.other?.avatar_url}
+              seed={request.other?.supabase_user_id ?? String(request.id)}
+              size={40}
+            />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">
                 {request.other?.display_name ?? "A traveller"}

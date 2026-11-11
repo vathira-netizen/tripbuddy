@@ -68,11 +68,21 @@ CITIES = [
     ("Guwahati, Assam", 26.14, 91.73),
 ]
 
-FIRST_NAMES = [
-    "Asha", "Ravi", "Meera", "Arjun", "Priya", "Karan", "Nithya", "Vikram",
-    "Sneha", "Rohan", "Divya", "Aditya", "Ananya", "Farhan", "Ishita", "Kabir",
-    "Lakshmi", "Manish", "Neha", "Omkar", "Pooja", "Rahul", "Sara", "Tanvi",
+FEMALE_NAMES = [
+    "Asha", "Meera", "Priya", "Nithya", "Sneha", "Divya", "Ananya", "Ishita",
+    "Lakshmi", "Neha", "Pooja", "Sara", "Tanvi",
 ]
+MALE_NAMES = [
+    "Ravi", "Arjun", "Karan", "Vikram", "Rohan", "Aditya", "Farhan", "Kabir",
+    "Manish", "Omkar", "Rahul",
+]
+FIRST_NAMES = FEMALE_NAMES + MALE_NAMES
+
+# Face photos for seeded profiles: randomuser.me's fixed portrait set (stable
+# static URLs, 0-99 per gender). Fictitious people only; matched to the name's
+# gender so a seeded "Asha" doesn't carry a man's face.
+PORTRAIT_URL = "https://randomuser.me/api/portraits/{kind}/{n}.jpg"
+
 LAST_NAMES = [
     "Nair", "Sharma", "Iyer", "Patel", "Reddy", "Menon", "Gupta", "Rao",
     "Desai", "Bose", "Khan", "Pillai",
@@ -170,7 +180,12 @@ class Command(BaseCommand):
             lat = round(lat + rng.uniform(-0.05, 0.05), COORDINATE_PRECISION)
             lng = round(lng + rng.uniform(-0.05, 0.05), COORDINATE_PRECISION)
 
-            name = f"{rng.choice(FIRST_NAMES)} {rng.choice(LAST_NAMES)}"
+            first = rng.choice(FIRST_NAMES)
+            female = first in FEMALE_NAMES
+            name = f"{first} {rng.choice(LAST_NAMES)}"
+            avatar_url = PORTRAIT_URL.format(
+                kind="women" if female else "men", n=rng.randint(0, 99)
+            )
             interests = rng.sample(INTEREST_TAGS, rng.randint(3, 6))
             languages = rng.sample(LANGUAGES, rng.randint(1, 3))
             if "english" not in languages and rng.random() < 0.7:
@@ -183,9 +198,8 @@ class Command(BaseCommand):
                     "supabase_user_id": uuid.uuid5(PILOT_NAMESPACE, handle),
                     "display_name": name,
                     "age_band": rng.choice(AGE_BAND_ORDER),
-                    "gender": rng.choice(
-                        ["female", "male", "non_binary", "prefer_not_to_say"]
-                    ),
+                    "gender": "female" if female else "male",
+                    "avatar_url": avatar_url,
                     "languages": sorted(languages),
                     "interests": sorted(interests),
                     "budget_style": rng.choice(BUDGET_TIER_ORDER),
