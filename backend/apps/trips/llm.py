@@ -352,6 +352,16 @@ def check_season_mismatch(facts: dict | None, start_date, end_date) -> str | Non
     return None
 
 
+# Catalogue first; general knowledge only when labelled as such. Plans are
+# still budget-checked server-side either way.
+GROUNDING_RULE = (
+    "Prefer the DATA below: it is TripBuddy's own catalogue with real daily "
+    "costs. For places or facts not in DATA you may use general knowledge, but "
+    "say plainly that those figures are rough estimates, not from TripBuddy's "
+    "catalogue, and never invent exact prices, timings or venue names."
+)
+
+
 def build_assistant_prompt(context: dict, question: str) -> str:
     """Prompt for the trip assistant: answer from ``context`` only.
 
@@ -362,9 +372,8 @@ def build_assistant_prompt(context: dict, question: str) -> str:
     """
     return (
         "You are TripBuddy's trip assistant for budget travellers in India. "
-        "Answer using ONLY the data below; if it doesn't cover the question, "
-        "say so rather than guessing. Amounts are INR.\n"
-        f"DATA: {json.dumps(context, default=str)}\n\n"
+        f"{GROUNDING_RULE} Amounts are INR.\n"
+        f"DATA: {json.dumps(context, default=str, separators=(',', ':'))}\n\n"
         f"QUESTION: {question}\n\n"
         "Respond with STRICT JSON ONLY. Shape: "
         '{"answer": str, "plan": null or {"days": [{"items": [{"title": str, '
@@ -387,3 +396,93 @@ def parse_assistant_reply(raw: str) -> tuple[str, list[DraftDay] | None]:
     plan = data.get("plan")
     days = parse_itinerary(json.dumps(plan)) if plan else None
     return str(data["answer"]).strip(), days
+
+
+CHAT_HISTORY_LIMIT = 10
+
+# Bounds for what the model may claim about the trip; anything outside is
+# dropped rather than trusted.
+_CONTEXT_INT_BOUNDS = {"days": (1, 60), "travellers": (1, 20), "budget": (0, 10_000_000)}
+
+
+def build_chat_messages(data: dict, history: list[tuple[str, str]], message: str) -> list[dict]:
+    """OpenAI-style messages for one chat turn.
+
+    ``data`` is the grounding (catalogue, linked trip, context so far) built
+    in ai_service; ``history`` is (role, content) pairs, oldest first, already
+    trimmed to CHAT_HISTORY_LIMIT. The reply is strict JSON so the server can
+    validate places against the catalogue and budget-check any plan.
+    """
+    system = (
+        "You are TripBuddy's travel assistant for budget travellers in India. "
+        f"{GROUNDING_RULE} Amounts are INR. Be concise and practical.\n"
+        f"DATA: {json.dumps(data, default=str, separators=(',', ':'))}\n\n"
+        "Respond with STRICT JSON ONLY, no markdown fences, in this shape:\n"
+        '{"title": str (3-6 words naming the trip idea),\n'
+        ' "answer": str (markdown: short headings, bullet lists, bold key numbers),\n'
+        ' "context": {"destination": str|null, "days": int|null, '
+        '"travellers": int|null, "budget": int|null (total INR for the group)},\n'
+        ' "places": [slug] (catalogue slugs you mention, max 6),\n'
+        ' "plan": null or {"days": [{"items": [{"title": str, "category": one of '
+        f'{list(VALID_CATEGORIES)}, "est_cost": number, "location": str, '
+        '"notes": str}]}]},\n'
+        ' "follow_up": str|null (one short clarifying question)}\n'
+        'Fill "context" from the whole conversation. Set "plan" only when the '
+        "user wants an itinerary; keep its total est_cost within the budget. "
+        "Only use slugs from DATA.destinations or DATA.other_destinations "
+        "(the latter lists the rest of the catalogue by slug). Do not take bookings "
+        "or payments; point to sites like IRCTC, RedBus or MakeMyTrip instead."
+    )
+    return (
+        [{"role": "system", "content": system}]
+        + [{"role": role, "content": content} for role, content in history]
+        + [{"role": "user", "content": message}]
+    )
+
+
+def _clean_context(raw) -> dict:
+    """Keep only well-typed, in-range context values; drop the rest."""
+    if not isinstance(raw, dict):
+        return {}
+    clean = {}
+    destination = raw.get("destination")
+    if isinstance(destination, str) and destination.strip():
+        clean["destination"] = destination.strip()[:60]
+    for key, (low, high) in _CONTEXT_INT_BOUNDS.items():
+        try:
+            value = int(raw.get(key))
+        except (TypeError, ValueError):
+            continue
+        if low <= value <= high:
+            clean[key] = value
+    return clean
+
+
+def parse_chat_reply(raw: str) -> dict:
+    """{title, answer, context, places, days, follow_up} from the model's JSON.
+
+    Raises ItineraryParseError when there is no usable answer. ``places`` is
+    returned as given (strings only); the caller checks them against the
+    catalogue. ``days`` is parsed itinerary days, or None.
+    """
+    try:
+        data = json.loads(_strip_fences(raw))
+    except (json.JSONDecodeError, TypeError) as exc:
+        raise ItineraryParseError(f"Not valid JSON: {exc}") from exc
+    # The model occasionally wraps the object in a one-item list.
+    if isinstance(data, list) and data and isinstance(data[0], dict):
+        data = data[0]
+    if not isinstance(data, dict) or not str(data.get("answer", "")).strip():
+        raise ItineraryParseError("Reply has no answer.")
+
+    places = data.get("places") if isinstance(data.get("places"), list) else []
+    follow_up = data.get("follow_up")
+    plan = data.get("plan")
+    return {
+        "title": str(data.get("title") or "").strip()[:120],
+        "answer": str(data["answer"]).strip(),
+        "context": _clean_context(data.get("context")),
+        "places": [p for p in places if isinstance(p, str)][:6],
+        "days": parse_itinerary(json.dumps(plan)) if plan else None,
+        "follow_up": follow_up.strip()[:300] if isinstance(follow_up, str) and follow_up.strip() else None,
+    }

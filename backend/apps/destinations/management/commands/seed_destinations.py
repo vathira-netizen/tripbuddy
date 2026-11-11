@@ -55,13 +55,14 @@ class Command(BaseCommand):
                         "best_season": row.get("best_season", "").strip(),
                         "region": row.get("region", "").strip(),
                         "state": row.get("state", "").strip(),
+                        # Photos are Wikimedia URLs written into the CSV by
+                        # refresh_destination_images --write-csv.
                         "image_url": row.get("image_url", "").strip(),
-                        # Gallery extras beyond the card thumbnail above, same
-                        # deterministic placeholder convention, distinct seeds.
                         "image_urls": [
-                            f"https://picsum.photos/seed/{row['slug'].strip()}-{n}/900/600"
-                            for n in (2, 3, 4)
+                            u.strip() for u in row.get("image_urls", "").split("|") if u.strip()
                         ],
+                        "image_credit": row.get("image_credit", "").strip(),
+                        "description": row.get("description", "").strip(),
                     },
                 )
                 created += was_created

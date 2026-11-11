@@ -16,6 +16,9 @@ export interface Destination {
   image_url: string;
   /** Extra gallery photos beyond image_url, same placeholder convention. */
   image_urls: string[];
+  /** Wikipedia page the photos come from (Commons licences require credit). */
+  image_credit: string;
+  description: string;
   distance_km: number | null;
   avg_rating: number | null;
   review_count: number;
@@ -40,7 +43,11 @@ export interface SavedDestination {
 
 interface Page<T> {
   results: T[];
+  count: number;
 }
+
+/** Matches the API's PAGE_SIZE (config/settings.py). */
+export const DISCOVER_PAGE_SIZE = 20;
 
 /** Regions present in the seed catalogue — used by the discover filter. */
 export const REGIONS = [
@@ -55,22 +62,30 @@ export const REGIONS = [
 
 export const STATES = [
   "Andaman and Nicobar Islands",
+  "Andhra Pradesh",
   "Arunachal Pradesh",
   "Assam",
+  "Bihar",
+  "Dadra and Nagar Haveli and Daman and Diu",
+  "Delhi",
   "Goa",
   "Gujarat",
   "Himachal Pradesh",
+  "Jammu and Kashmir",
   "Karnataka",
   "Kerala",
   "Ladakh",
+  "Lakshadweep",
   "Madhya Pradesh",
   "Maharashtra",
   "Meghalaya",
+  "Odisha",
   "Puducherry",
   "Punjab",
   "Rajasthan",
   "Sikkim",
   "Tamil Nadu",
+  "Telangana",
   "Uttar Pradesh",
   "Uttarakhand",
   "West Bengal",
@@ -118,6 +133,7 @@ export interface DestinationFilters {
   state?: string;
   interests?: string[];
   ordering?: string;
+  page?: number;
 }
 
 function buildQuery(f: DestinationFilters): string {
@@ -128,12 +144,17 @@ function buildQuery(f: DestinationFilters): string {
   if (f.state) q.set("state", f.state);
   if (f.interests?.length) q.set("interests", f.interests.join(","));
   if (f.ordering) q.set("ordering", f.ordering);
+  if (f.page && f.page > 1) q.set("page", String(f.page));
   const s = q.toString();
   return s ? `?${s}` : "";
 }
 
 export const listDestinations = (f: DestinationFilters) =>
   api.get<Page<Destination>>(`/api/destinations/${buildQuery(f)}`).then((p) => p.results);
+
+/** One page of results plus the total, for the paginated Discover grid. */
+export const listDestinationsPage = (f: DestinationFilters) =>
+  api.get<Page<Destination>>(`/api/destinations/${buildQuery(f)}`);
 
 export const getDestination = (slug: string) =>
   api.get<Destination>(`/api/destinations/${slug}/`);

@@ -12,6 +12,7 @@ const HIDDEN = ["/", "/login", "/register", "/reset-password", "/update-password
 
 const LINKS = [
   { href: "/discover", label: "Discover" },
+  { href: "/chat", label: "Assistant" },
   { href: "/trips", label: "Trips" },
   { href: "/buddies", label: "Buddies" },
   { href: "/connections", label: "Requests", badge: "requests" as const },

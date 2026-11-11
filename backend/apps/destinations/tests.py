@@ -61,17 +61,27 @@ def make_dest(slug, lat, lng, budget=1500, tier="budget", tags=None, region="Nor
 def test_seed_is_idempotent():
     call_command("seed_destinations")
     first = Destination.objects.count()
-    assert 30 <= first <= 50
+    assert 80 <= first <= 150
     call_command("seed_destinations")
     assert Destination.objects.count() == first  # no duplicates on re-run
 
 
 @pytest.mark.django_db
-def test_seed_fills_gallery_image_urls():
-    call_command("seed_destinations")
-    dest = Destination.objects.first()
-    assert len(dest.image_urls) == 3
-    assert all(dest.slug in url for url in dest.image_urls)
+def test_seed_loads_photos_credit_and_description(tmp_path):
+    csv_path = tmp_path / "seed.csv"
+    csv_path.write_text(
+        "name,slug,lat,lng,avg_daily_budget,budget_tier,interest_tags,best_season,"
+        "region,state,image_url,image_urls,image_credit,description\n"
+        "Hampi,hampi,15.335,76.46,900,budget,heritage,Oct-Feb,South,Karnataka,"
+        "https://upload.wikimedia.org/a.jpg,https://upload.wikimedia.org/b.jpg|https://upload.wikimedia.org/c.jpg,"
+        "https://en.wikipedia.org/wiki/Hampi,Ruins among boulders.\n",
+        encoding="utf-8",
+    )
+    call_command("seed_destinations", csv=str(csv_path))
+    dest = Destination.objects.get(slug="hampi")
+    assert dest.image_urls == ["https://upload.wikimedia.org/b.jpg", "https://upload.wikimedia.org/c.jpg"]
+    assert dest.image_credit == "https://en.wikipedia.org/wiki/Hampi"
+    assert dest.description == "Ruins among boulders."
 
 
 # --- Auth gate ------------------------------------------------------------

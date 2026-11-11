@@ -5,7 +5,14 @@ from apps.accounts.models import Profile
 from apps.budgets.models import BudgetItem
 from apps.common.permissions import is_trip_member
 from apps.common.querysets import accepted_connections
-from apps.trips.models import ItineraryItem, Trip, TripCollaborator, TripJoinRequest
+from apps.trips.models import (
+    ChatMessage,
+    Conversation,
+    ItineraryItem,
+    Trip,
+    TripCollaborator,
+    TripJoinRequest,
+)
 
 
 class ItineraryItemSerializer(serializers.ModelSerializer):
@@ -263,6 +270,55 @@ class AssistantQuestionSerializer(serializers.Serializer):
     """Body of POST /api/trips/{id}/ask/."""
 
     question = serializers.CharField(max_length=500)
+
+
+class ChatMessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ChatMessage
+        fields = ["id", "role", "content", "data", "created_at"]
+        read_only_fields = fields
+
+
+class ConversationListSerializer(serializers.ModelSerializer):
+    trip_title = serializers.CharField(source="trip.title", read_only=True, default=None)
+
+    class Meta:
+        model = Conversation
+        fields = ["id", "title", "trip", "trip_title", "updated_at"]
+        read_only_fields = fields
+
+
+class ConversationSerializer(serializers.ModelSerializer):
+    """A conversation with its messages. Only title and trip are writable."""
+
+    trip_title = serializers.CharField(source="trip.title", read_only=True, default=None)
+    messages = ChatMessageSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Conversation
+        fields = ["id", "title", "trip", "trip_title", "context", "messages", "created_at", "updated_at"]
+        read_only_fields = ["id", "context", "messages", "created_at", "updated_at"]
+
+    def validate_trip(self, trip):
+        # Only link a trip the user can actually see.
+        if trip is not None and not is_trip_member(self.context["request"].user, trip):
+            raise serializers.ValidationError("Not a trip you're a member of.")
+        return trip
+
+
+class ChatInputSerializer(serializers.Serializer):
+    """Body of POST /api/chats/ and /api/chats/{id}/messages/."""
+
+    message = serializers.CharField(max_length=2000)
+    # Only on create: start the chat inside one of your trips.
+    trip = serializers.PrimaryKeyRelatedField(
+        queryset=Trip.objects.all(), required=False, allow_null=True
+    )
+
+    def validate_trip(self, trip):
+        if trip is not None and not is_trip_member(self.context["request"].user, trip):
+            raise serializers.ValidationError("Not a trip you're a member of.")
+        return trip
 
 
 class DraftItemSerializer(serializers.Serializer):
