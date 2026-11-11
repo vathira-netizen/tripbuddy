@@ -6,6 +6,10 @@ services:
     build:
       context: ./backend
     env_file: ./backend/.env
+    environment:
+      # Threads so the frontend's parallel calls don't queue behind one sync
+      # worker; longer timeout because the first DB connect to Supabase is slow.
+      GUNICORN_CMD_ARGS: "--workers 2 --threads 8 --timeout 120"
     ports:
       - "8000:8000"
 

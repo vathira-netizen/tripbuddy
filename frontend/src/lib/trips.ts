@@ -203,6 +203,10 @@ export interface AiDraftItem {
   est_cost: string;
   location: string;
   notes: string;
+  /** Reasons this item's cost looked off for the destination's typical
+   * spend ("cost_high" / "cost_low") — a plausibility check against our own
+   * catalogue data, not a claim that the venue was verified to exist. */
+  flags: string[];
 }
 
 export interface AiDraftDay {
@@ -219,6 +223,15 @@ export interface AiDraft {
   offending_items: AiDraftItem[];
   provider: string;
   model: string;
+  /** Whether the destination catalogue had facts (typical spend, tags,
+   * season) to ground this plan in at all. */
+  grounded: boolean;
+  /** Plan-level cautions, e.g. dates falling outside the destination's
+   * usual best season. Empty when there's nothing to flag. */
+  advisories: string[];
+  /** Always shown: no plan's specific venues are verified against a live
+   * database, grounded or not. */
+  disclaimer: string;
 }
 
 export interface GenerateParams {
@@ -226,6 +239,22 @@ export interface GenerateParams {
   transport_pref?: string;
   accommodation_pref?: string;
 }
+
+export interface AssistantReply {
+  answer: string;
+  /** Present only when the user asked for a plan; already budget-checked. */
+  plan: {
+    days: AiDraftDay[];
+    target: string | null;
+    total: string;
+    over_budget: boolean;
+    offending_items: AiDraftItem[];
+    disclaimer: string;
+  } | null;
+}
+
+export const askAssistant = (tripId: number, question: string) =>
+  api.post<AssistantReply>(`/api/trips/${tripId}/ask/`, { question });
 
 export const generateItinerary = (tripId: number, params: GenerateParams) =>
   api.post<AiDraft>(`/api/trips/${tripId}/generate-itinerary/`, params);

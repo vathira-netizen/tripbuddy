@@ -148,11 +148,20 @@ function MessagesInner() {
                     >
                       <span
                         aria-hidden="true"
-                        className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-xs font-bold ${monogramClass(
+                        className={`grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full text-xs font-bold ${monogramClass(
                           accent,
                         )}`}
                       >
-                        {initials(conversation.other?.display_name ?? "?")}
+                        {conversation.other?.avatar_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element -- user-supplied external URL
+                          <img
+                            src={conversation.other.avatar_url}
+                            alt=""
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          initials(conversation.other?.display_name ?? "?")
+                        )}
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-semibold text-foreground">
