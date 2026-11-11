@@ -259,6 +259,12 @@ class GenerateParamsSerializer(serializers.Serializer):
     )
 
 
+class AssistantQuestionSerializer(serializers.Serializer):
+    """Body of POST /api/trips/{id}/ask/."""
+
+    question = serializers.CharField(max_length=500)
+
+
 class DraftItemSerializer(serializers.Serializer):
     """One item of an accepted AI draft, re-validated on the way back in."""
 

@@ -175,11 +175,16 @@ export function MessageThread({ connection }: { connection: Connection }) {
       <header className="flex items-center gap-2.5 border-b border-line px-[18px] py-3.5">
         <span
           aria-hidden="true"
-          className={`grid h-[34px] w-[34px] shrink-0 place-items-center rounded-full text-xs font-bold ${
+          className={`grid h-[34px] w-[34px] shrink-0 place-items-center overflow-hidden rounded-full text-xs font-bold ${
             accent === "teal" ? "bg-brand-teal text-background" : "bg-brand-coral text-white"
           }`}
         >
-          {initials(other?.display_name ?? "?")}
+          {other?.avatar_url ? (
+            // eslint-disable-next-line @next/next/no-img-element -- user-supplied external URL
+            <img src={other.avatar_url} alt="" className="h-full w-full object-cover" />
+          ) : (
+            initials(other?.display_name ?? "?")
+          )}
         </span>
         <div className="min-w-0">
           <h2 className="truncate text-sm font-semibold text-foreground">

@@ -8,16 +8,46 @@ no live API call. The network boundary lives in ``apps.trips.ai_service``.
 The golden rule for Phase 6: the model is never trusted blindly. ``est_cost``
 figures it returns are re-summed and checked against the trip's budget here,
 never taken on faith.
+
+Phase 6.1 adds a second kind of scepticism: even a within-budget plan can be
+unrealistic (an implausibly cheap "5-star stay", a July trip to a place whose
+best season is November) or reference a venue nobody can confirm exists. This
+module cannot verify that a named place is real — the destination catalogue
+has no venue-level data, only city-level facts (typical spend, budget tier,
+tags, season). So instead of a false "verified" claim, it does the honest
+version: ground the prompt in those real facts, and flag numbers/dates that
+don't fit them. See ``flag_cost_outliers`` and ``check_season_mismatch``.
 """
 
 import json
 import re
 from dataclasses import dataclass, field
+from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 
 # Must match apps.budgets.models.BudgetItem.Category so a draft item can become
 # a real BudgetItem without translation.
 VALID_CATEGORIES = ("Transport", "Stay", "Food", "Activities", "Other")
+
+# Rough share of a destination's average daily budget each category tends to
+# take. Deliberately coarse — this exists only to sanity-check the model's
+# own numbers against a domain prior, never to dictate them. A category not
+# listed falls back to 0.15 (see flag_cost_outliers).
+CATEGORY_DAILY_SHARE = {
+    "Stay": Decimal("0.40"),
+    "Food": Decimal("0.25"),
+    "Activities": Decimal("0.20"),
+    "Transport": Decimal("0.10"),
+    "Other": Decimal("0.05"),
+}
+
+# destinations.Destination.best_season strings look like "Nov-Feb" or
+# "Oct-Mar" — three-letter month abbreviations, hyphen-joined, sometimes
+# wrapping the year boundary.
+_MONTH_ABBR = [
+    "jan", "feb", "mar", "apr", "may", "jun",
+    "jul", "aug", "sep", "oct", "nov", "dec",
+]
 
 
 class ItineraryParseError(ValueError):
@@ -31,6 +61,10 @@ class DraftItem:
     est_cost: Decimal
     location: str = ""
     notes: str = ""
+    # Reasons this item looked off against what we actually know about the
+    # destination — see flag_cost_outliers. Never set by parsing; the model
+    # never gets to flag its own output.
+    flags: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         # est_cost as a string keeps Decimal precision through JSON.
@@ -40,6 +74,7 @@ class DraftItem:
             "est_cost": str(self.est_cost),
             "location": self.location,
             "notes": self.notes,
+            "flags": self.flags,
         }
 
 
@@ -63,11 +98,20 @@ def build_prompt(
     style,
     transport_pref,
     accommodation_pref,
+    facts: dict | None = None,
 ) -> str:
     """A strict-JSON instruction for the model.
 
     Everything the caller knows about the trip is folded into one text prompt.
     ``budget`` may be None (no target set); the others are plain strings/ints.
+
+    ``facts`` is the destination's own curated data (see
+    ``apps.trips.ai_service._destination_facts``) — typical spend, budget
+    tier, interest tags, best season. When present it's folded in as a
+    grounding block so the model anchors to real numbers instead of
+    free-associating, and is told not to invent named venues it can't be
+    confident about. This doesn't make the output verified; it makes it less
+    likely to drift from what we actually know.
     """
     budget_line = (
         f"Keep the combined est_cost of all items at or under {budget} "
@@ -76,6 +120,26 @@ def build_prompt(
         else "No fixed budget; keep costs reasonable and note them."
     )
     days = max(int(nights) + 1, 1)
+
+    facts_block = ""
+    if facts:
+        tags = ", ".join(facts.get("interest_tags") or []) or "none listed"
+        facts_block = (
+            "\nKnown facts about this destination — ground your plan in these, "
+            "don't contradict them:\n"
+            f"- Typical spend for a budget traveller: about "
+            f"{facts.get('avg_daily_budget')} INR per person per day "
+            f"({facts.get('budget_tier', 'unknown')} tier).\n"
+            f"- Known for: {tags}.\n"
+            f"- Best season to visit: {facts.get('best_season') or 'not recorded'}.\n"
+            "Keep per-day costs consistent with that typical spend, and prefer "
+            "activities that match what this destination is known for. Do not "
+            "invent named hotels, restaurants, or attractions you aren't "
+            "reasonably confident are real — prefer describing the type of "
+            "place (e.g. 'a budget hostel near the beach') over a specific "
+            "name if you're not sure one exists.\n"
+        )
+
     return (
         "You are a budget-conscious travel planner. Draft a day-by-day "
         f"itinerary for a trip to {destination or 'the destination'} over "
@@ -84,6 +148,7 @@ def build_prompt(
         f"Transport preference: {transport_pref or 'any'}. "
         f"Accommodation preference: {accommodation_pref or 'any'}.\n"
         f"{budget_line}\n"
+        f"{facts_block}"
         "Prioritise trains and buses over flights, and budget stays over "
         "luxury ones.\n\n"
         "Respond with STRICT JSON ONLY — no prose, no markdown fences. Shape:\n"
@@ -206,3 +271,119 @@ def validate_budget(days: list[DraftDay], budget) -> dict:
         "per_category": per_category,
         "offending_items": offending,
     }
+
+
+def flag_cost_outliers(days: list[DraftDay], facts: dict | None) -> None:
+    """Mark items whose est_cost looks implausible for this destination.
+
+    Mutates each DraftItem's ``flags`` in place (adds "cost_high" and/or
+    "cost_low"). This checks the model's number against a coarse per-category
+    share of the destination's OWN recorded average daily budget — it is a
+    plausibility check against a domain prior, not a verification that any
+    claimed venue exists (the catalogue has no venue-level data to check
+    against). A flag means "unusual price for this destination's budget
+    tier," nothing stronger.
+
+    No-op when ``facts`` is falsy or has no avg_daily_budget — an unknown
+    destination has nothing to check against.
+    """
+    if not facts or not facts.get("avg_daily_budget"):
+        return
+    daily_budget = Decimal(str(facts["avg_daily_budget"]))
+
+    for day in days:
+        for item in day.items:
+            share = CATEGORY_DAILY_SHARE.get(item.category, Decimal("0.15"))
+            expected = daily_budget * share
+            if expected <= 0 or item.est_cost <= 0:
+                continue
+            if item.est_cost > expected * 3:
+                item.flags.append("cost_high")
+            elif item.est_cost < expected * Decimal("0.15"):
+                item.flags.append("cost_low")
+
+
+def _season_months(best_season: str) -> set[int] | None:
+    """Parse a 'Nov-Feb' style range into the set of month numbers (1-12) it
+    covers, wrapping the year boundary when the end month precedes the start.
+    Returns None for anything that doesn't parse as two 3-letter months.
+    """
+    if not best_season or "-" not in best_season:
+        return None
+    start_s, _, end_s = best_season.partition("-")
+    try:
+        start = _MONTH_ABBR.index(start_s.strip()[:3].lower()) + 1
+        end = _MONTH_ABBR.index(end_s.strip()[:3].lower()) + 1
+    except ValueError:
+        return None
+    if start <= end:
+        return set(range(start, end + 1))
+    return set(range(start, 13)) | set(range(1, end + 1))
+
+
+def check_season_mismatch(facts: dict | None, start_date, end_date) -> str | None:
+    """A plan-level advisory when the trip's dates fall outside the
+    destination's recorded best season. Purely informational — this never
+    blocks generation, it only tells the traveller to sanity-check weather,
+    closures, and pricing themselves. Returns None when there isn't enough
+    information (no facts, no recorded season, or no trip dates) to say
+    anything, or when the dates DO fall inside the season.
+    """
+    if not facts or not facts.get("best_season") or not (start_date and end_date):
+        return None
+    months = _season_months(facts["best_season"])
+    if not months:
+        return None
+
+    trip_months: set[int] = set()
+    d = start_date
+    # Trips are days, not years — bounded, so a day-by-day walk is fine.
+    while d <= end_date:
+        trip_months.add(d.month)
+        d += timedelta(days=1)
+
+    if trip_months and not (trip_months & months):
+        name = facts.get("name", "this destination")
+        return (
+            f"These dates fall outside {name}'s usual best season "
+            f"({facts['best_season']}) — the plan may not reflect real "
+            "seasonal weather, closures, or pricing."
+        )
+    return None
+
+
+def build_assistant_prompt(context: dict, question: str) -> str:
+    """Prompt for the trip assistant: answer from ``context`` only.
+
+    ``context`` is plain data built in ai_service (trip, budget so far, the
+    destination catalogue). The model replies with JSON: an ``answer`` and,
+    only if the user wants a plan, a ``plan`` in the itinerary shape — which
+    the server then budget-checks like any other draft.
+    """
+    return (
+        "You are TripBuddy's trip assistant for budget travellers in India. "
+        "Answer using ONLY the data below; if it doesn't cover the question, "
+        "say so rather than guessing. Amounts are INR.\n"
+        f"DATA: {json.dumps(context, default=str)}\n\n"
+        f"QUESTION: {question}\n\n"
+        "Respond with STRICT JSON ONLY. Shape: "
+        '{"answer": str, "plan": null or {"days": [{"items": [{"title": str, '
+        f'"category": one of {list(VALID_CATEGORIES)}, "est_cost": number, '
+        '"location": str, "notes": str}]}]}}\n'
+        'Set "plan" only when the user asks for a plan/itinerary; the total '
+        "est_cost must fit the trip budget. Do not take bookings or payments; "
+        "point to sites like IRCTC, RedBus or MakeMyTrip instead."
+    )
+
+
+def parse_assistant_reply(raw: str) -> tuple[str, list[DraftDay] | None]:
+    """(answer, days-or-None). Raises ItineraryParseError on a malformed reply."""
+    try:
+        data = json.loads(_strip_fences(raw))
+    except (json.JSONDecodeError, TypeError) as exc:
+        raise ItineraryParseError(f"Not valid JSON: {exc}") from exc
+    if not isinstance(data, dict) or not str(data.get("answer", "")).strip():
+        raise ItineraryParseError("Reply has no answer.")
+    plan = data.get("plan")
+    days = parse_itinerary(json.dumps(plan)) if plan else None
+    return str(data["answer"]).strip(), days

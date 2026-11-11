@@ -32,7 +32,7 @@ MAX_RADIUS_KM = 2000
 class DestinationViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     """Read-only catalogue. Public data, so any authenticated user may read it.
 
-    List supports ?min_budget=&max_budget=&region=&interests=a,b (all optional)
+    List supports ?min_budget=&max_budget=&region=&state=&interests=a,b (all optional)
     and ?ordering=avg_daily_budget (or -avg_daily_budget, name).
     """
 
@@ -55,6 +55,10 @@ class DestinationViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, views
         region = params.get("region")
         if region:
             qs = qs.filter(region__iexact=region)
+
+        state = params.get("state")
+        if state:
+            qs = qs.filter(state__iexact=state)
 
         interests = params.get("interests")
         if interests:

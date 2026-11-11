@@ -32,6 +32,7 @@ class DestinationSerializer(serializers.ModelSerializer):
             "interest_tags",
             "best_season",
             "region",
+            "state",
             "image_url",
             "image_urls",
             "distance_km",

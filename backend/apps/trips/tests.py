@@ -660,3 +660,30 @@ def test_apply_itinerary_denied_to_non_member(settings_secret):
     )
     assert resp.status_code == 404
     assert not ItineraryItem.objects.filter(title="X").exists()
+
+
+ASSISTANT_REPLY = (
+    '{"answer": "Hampi is cheap: ~900/day.", "plan": {"days": [{"items": ['
+    '{"title": "Stay", "category": "Stay", "est_cost": 3000}, '
+    '{"title": "Food", "category": "Food", "est_cost": 3000}]}]}}'
+)
+
+
+@pytest.mark.django_db
+def test_ask_assistant_budget_checks_plan(client, monkeypatch):
+    monkeypatch.setattr("apps.trips.ai_service.call_llm", lambda prompt: ASSISTANT_REPLY)
+    trip_id = client.post(
+        "/api/trips/", {"title": "Hampi", "target_amount": "5000"}, format="json"
+    ).data["id"]
+    resp = client.post(f"/api/trips/{trip_id}/ask/", {"question": "3 days?"}, format="json")
+    assert resp.status_code == 200
+    assert resp.data["answer"].startswith("Hampi")
+    assert resp.data["plan"]["over_budget"] is True  # 6000 > 5000, flagged not hidden
+
+
+@pytest.mark.django_db
+def test_ask_assistant_503_when_unconfigured(client, settings):
+    settings.GROQ_API_KEY = ""
+    trip_id = client.post("/api/trips/", {"title": "Goa"}, format="json").data["id"]
+    resp = client.post(f"/api/trips/{trip_id}/ask/", {"question": "hi"}, format="json")
+    assert resp.status_code == 503
