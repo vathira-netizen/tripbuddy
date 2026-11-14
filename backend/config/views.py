@@ -28,4 +28,39 @@ def health(request):
 
     from django.conf import settings
     llm_ok = bool(settings.GROQ_API_KEY)
-    return Response({"ok": True, "db": db_ok, "llm_configured": llm_ok, "llm_key_len": len(settings.GROQ_API_KEY)})
+    body = {"ok": True, "db": db_ok, "llm_configured": llm_ok, "llm_key_len": len(settings.GROQ_API_KEY)}
+    # ?llm=1 makes one tiny call to the provider with the server's real
+    # settings and reports only the status and the provider's error text (never
+    # the key), so a broken key/model can be diagnosed without logging in.
+    # Opt-in so Render's frequent health checks never spend LLM quota.
+    if request.query_params.get("llm") == "1" and llm_ok:
+        body["llm_probe"] = _probe_llm(settings)
+    return Response(body)
+
+
+def _probe_llm(settings) -> dict:
+    import requests
+
+    url = f"{settings.LLM_BASE_URL.rstrip('/')}/chat/completions"
+    try:
+        resp = requests.post(
+            url,
+            json={
+                "model": settings.LLM_MODEL,
+                "messages": [{"role": "user", "content": 'Reply with {"ok": true}'}],
+                "response_format": {"type": "json_object"},
+                "max_tokens": 20,
+            },
+            headers={"Authorization": f"Bearer {settings.GROQ_API_KEY}"},
+            timeout=20,
+        )
+    except requests.RequestException as exc:
+        return {"model": settings.LLM_MODEL, "error": type(exc).__name__}
+    result = {"model": settings.LLM_MODEL, "base_url": settings.LLM_BASE_URL, "status": resp.status_code}
+    if resp.status_code != 200:
+        try:
+            err = resp.json().get("error", {})
+            result["error"] = {"code": err.get("code"), "message": str(err.get("message"))[:300]}
+        except ValueError:
+            result["error"] = resp.text[:300]
+    return result
