@@ -9,7 +9,9 @@ services:
     environment:
       # Threads so the frontend's parallel calls don't queue behind one sync
       # worker; longer timeout because the first DB connect to Supabase is slow.
-      GUNICORN_CMD_ARGS: "--workers 2 --threads 8 --timeout 120"
+      # One worker: every thread holds its own ~3s-to-open DB connection, so
+      # 1x8 warms up twice as fast as 2x8 and still covers a page's parallel calls.
+      GUNICORN_CMD_ARGS: "--workers 1 --threads 8 --timeout 120"
     ports:
       - "8000:8000"
 

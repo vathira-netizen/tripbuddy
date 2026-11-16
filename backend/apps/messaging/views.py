@@ -12,7 +12,7 @@ Keeping both in step matters: relaxing one without the other is exactly how a
 blocked traveller keeps reading a conversation.
 """
 
-from django.db.models import Count, Q
+from django.db.models import Count, F, OuterRef, Q, Subquery
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiResponse, OpenApiTypes, extend_schema
 from rest_framework import generics, permissions, status
@@ -21,10 +21,15 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.common.querysets import is_authenticated
+from apps.common.querysets import is_authenticated, visible_trips
 from apps.connections.models import Connection
-from apps.messaging.models import Message
-from apps.messaging.serializers import MessageSerializer, UnreadSummarySerializer
+from apps.messaging.models import Message, TripChatRead, TripMessage
+from apps.messaging.serializers import (
+    MessageSerializer,
+    TripChatSerializer,
+    TripMessageSerializer,
+    UnreadSummarySerializer,
+)
 
 # Deliberately vague, and identical whether the connection does not exist, is
 # not yours, or is blocked — the response must not tell a blocked user which.
@@ -186,11 +191,139 @@ class UnreadSummaryView(APIView):
             addressee=user, status=Connection.Status.PENDING
         ).count()
 
+        by_trip = {str(k): v for k, v in trip_unread_counts(user).items()}
+
         serializer = UnreadSummarySerializer(
             {
-                "unread_messages": sum(by_connection.values()),
+                "unread_messages": sum(by_connection.values()) + sum(by_trip.values()),
                 "pending_requests": pending,
                 "unread_by_connection": by_connection,
+                "unread_by_trip": by_trip,
             }
         )
         return Response(serializer.data)
+
+
+# --- Trip group chat ---------------------------------------------------------
+# Any trip member (owner or collaborator) may read and write; a "group" is just
+# a trip with collaborators, so inviting a friend to a trip is what creates one.
+
+
+def get_member_trip(user, pk):
+    """The trip, or refuse — same vague answer for "missing" and "not yours"."""
+    trip = visible_trips(user).filter(pk=pk).first() if is_authenticated(user) else None
+    if trip is None:
+        raise PermissionDenied(NO_ACCESS)
+    return trip
+
+
+def trip_unread_counts(user):
+    """{trip_id: unread} over the user's trips, excluding their own messages."""
+    last_read = TripChatRead.objects.filter(
+        trip=OuterRef("trip"), user=user
+    ).values("last_read_at")[:1]
+    rows = (
+        TripMessage.objects.filter(trip_id__in=visible_trips(user).values("pk"))
+        .exclude(sender=user)
+        .annotate(lr=Subquery(last_read))
+        .filter(Q(lr__isnull=True) | Q(created_at__gt=F("lr")))
+        .values("trip_id")
+        .annotate(n=Count("id"))
+    )
+    return {r["trip_id"]: r["n"] for r in rows}
+
+
+class TripMessagesView(generics.ListCreateAPIView):
+    """``GET``/``POST /api/trips/{id}/messages/`` — the trip's group chat."""
+
+    serializer_class = TripMessageSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = MessagePagination
+
+    def get_trip(self):
+        if not hasattr(self, "_trip"):
+            self._trip = get_member_trip(self.request.user, self.kwargs["pk"])
+        return self._trip
+
+    def get_queryset(self):
+        return (
+            TripMessage.objects.filter(trip=self.get_trip())
+            .select_related("sender__profile")
+            .order_by("-created_at", "-id")
+        )
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        if self.request is not None and is_authenticated(self.request.user):
+            context["reads"] = list(
+                TripChatRead.objects.filter(trip=self.get_trip()).values_list(
+                    "user_id", "last_read_at"
+                )
+            )
+        return context
+
+    def perform_create(self, serializer):
+        serializer.save(trip=self.get_trip(), sender=self.request.user)
+
+
+class TripChatReadView(APIView):
+    """``POST /api/trips/{id}/messages/read/`` — mark the group chat read."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(request=None, responses=OpenApiTypes.OBJECT)
+    def post(self, request, pk):
+        trip = get_member_trip(request.user, pk)
+        TripChatRead.objects.update_or_create(
+            trip=trip, user=request.user, defaults={"last_read_at": timezone.now()}
+        )
+        return Response({"ok": True})
+
+
+class TripChatListView(APIView):
+    """``GET /api/trip-chats/`` — the user's trip groups for the Messages page."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(responses=TripChatSerializer(many=True))
+    def get(self, request):
+        user = request.user
+        trips = list(
+            visible_trips(user)
+            .filter(collaborators__isnull=False)
+            .select_related("owner__profile")
+            .prefetch_related("collaborators__user__profile")
+        )
+        unread = trip_unread_counts(user)
+        last = {}
+        newest_per_trip = (
+            TripMessage.objects.filter(trip__in=trips)
+            .select_related("sender__profile")
+            .order_by("trip_id", "-created_at", "-id")
+            .distinct("trip_id")
+        )
+        for m in newest_per_trip:
+            last[m.trip_id] = {
+                "body": m.body,
+                "sender_name": m.sender.profile.display_name,
+                "created_at": m.created_at,
+            }
+        rows = [
+            {
+                "id": t.pk,
+                "title": t.title,
+                "members": [t.owner.profile.display_name]
+                + [c.user.profile.display_name for c in t.collaborators.all()],
+                "unread": unread.get(t.pk, 0),
+                "last_message": last.get(t.pk),
+            }
+            for t in trips
+        ]
+        # Most recently active first; groups with no messages yet sink.
+        rows.sort(
+            key=lambda r: r["last_message"]["created_at"].isoformat()
+            if r["last_message"]
+            else "",
+            reverse=True,
+        )
+        return Response(TripChatSerializer(rows, many=True).data)

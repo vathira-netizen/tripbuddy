@@ -34,6 +34,27 @@ async function authHeader(): Promise<Record<string, string>> {
   return session ? { Authorization: `Bearer ${session.access_token}` } : {};
 }
 
+/**
+ * One retry for GETs that die on the network or a 502/503/504 — what a sleeping
+ * Render instance or a dropped pooled DB connection looks like from the browser.
+ * Writes are never retried: a POST that reached the server must not run twice.
+ */
+async function fetchWithRetry(url: string, options: RequestInit): Promise<Response> {
+  const idempotent = (options.method ?? "GET") === "GET";
+  try {
+    const response = await fetch(url, options);
+    if (idempotent && [502, 503, 504].includes(response.status)) {
+      await new Promise((r) => setTimeout(r, 1500));
+      return await fetch(url, options);
+    }
+    return response;
+  } catch (err) {
+    if (!idempotent) throw err;
+    await new Promise((r) => setTimeout(r, 1500));
+    return fetch(url, options);
+  }
+}
+
 export async function apiFetch<T = unknown>(
   path: string,
   options: RequestInit = {},
@@ -47,7 +68,7 @@ export async function apiFetch<T = unknown>(
     headers.set(key, value);
   }
 
-  const response = await fetch(`${API_URL}${path}`, { ...options, headers });
+  const response = await fetchWithRetry(`${API_URL}${path}`, { ...options, headers });
 
   if (response.status === 204) {
     return undefined as T;

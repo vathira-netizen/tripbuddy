@@ -31,6 +31,7 @@ import ItineraryBoard from "@/components/ItineraryBoard";
 import AiItineraryPanel from "@/components/AiItineraryPanel";
 import TripAssistantPanel from "@/components/TripAssistantPanel";
 import TripCoverUpload from "@/components/TripCoverUpload";
+import { TripChatThread } from "@/components/TripChatThread";
 import { FormError } from "@/components/ui";
 
 export default function TripPlannerPage() {
@@ -235,6 +236,17 @@ export default function TripPlannerPage() {
       </div>
 
       {error && <FormError message={error} />}
+
+      {/* Group chat: only meaningful once a friend has been added. */}
+      {trip.collaborators.length > 0 && (
+        <div className="print:hidden">
+          <TripChatThread
+            tripId={tripId}
+            title={`${trip.title} — group chat`}
+            members={[`${trip.collaborators.length + 1} members`]}
+          />
+        </div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2 print:hidden">
         {/* Collaborators */}
