@@ -22,6 +22,7 @@ import logging
 
 import jwt
 from django.conf import settings
+from django.core.cache import cache
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 from drf_spectacular.extensions import OpenApiAuthenticationExtension
@@ -35,6 +36,8 @@ User = get_user_model()
 
 # Supabase stamps every end-user access token with this audience.
 SUPABASE_AUDIENCE = "authenticated"
+
+USER_CACHE_SECONDS = 30
 
 SYMMETRIC_ALGORITHMS = ["HS256"]
 ASYMMETRIC_ALGORITHMS = ["ES256", "RS256"]
@@ -176,6 +179,15 @@ class SupabaseJWTAuthentication(authentication.BaseAuthentication):
             payload.get("email_verified") or payload.get("user_metadata", {}).get("email_verified")
         )
 
+        # Every request used to spend a DB round trip (~0.13s on Supabase) just
+        # re-finding the user. Serve it from a short per-process cache instead;
+        # email / verified-flag sync below simply runs when the entry expires.
+        # ponytail: a deactivated user keeps working for up to USER_CACHE_SECONDS.
+        cache_key = f"sb-user:{supabase_user_id}"
+        cached = cache.get(cache_key)
+        if cached is not None and cached.is_active:
+            return cached
+
         profile = (
             Profile.objects.select_related("user")
             .filter(supabase_user_id=supabase_user_id)
@@ -189,6 +201,7 @@ class SupabaseJWTAuthentication(authentication.BaseAuthentication):
             if email_verified and not profile.email_verified:
                 profile.email_verified = True
                 profile.save(update_fields=["email_verified"])
+            cache.set(cache_key, profile.user, USER_CACHE_SECONDS)
             return profile.user
 
         try:

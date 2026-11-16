@@ -9,6 +9,7 @@ import {
   declineConnection,
   listConnections,
 } from "@/lib/buddies";
+import { ApiError } from "@/lib/api";
 import { Avatar } from "@/components/Avatar";
 
 /**
@@ -58,8 +59,15 @@ export function IncomingRequests({ onAnswered }: { onAnswered?: () => void }) {
       await action(connection.id);
       setRequests((current) => current.filter((r) => r.id !== connection.id));
       onAnswered?.();
-    } catch {
-      setError("That did not go through. Try again.");
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 400) {
+        // "Already accepted/declined" — e.g. the first attempt did land and only
+        // its response was lost. The row is stale either way; drop it.
+        setRequests((current) => current.filter((r) => r.id !== connection.id));
+        onAnswered?.();
+      } else {
+        setError("That did not go through. Try again.");
+      }
     } finally {
       setBusy(null);
     }
