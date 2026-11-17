@@ -108,10 +108,18 @@ DATABASES = {
     "default": dj_database_url.config(
         env="DATABASE_URL",
         default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
-        conn_max_age=600,
+        # Opening a connection to the Supabase pooler costs ~3s (TLS + auth +
+        # PostGIS type registration) and every query ~0.13s round trip, so keep
+        # connections for an hour and never add a per-request check query.
+        # Idle drops are handled by the TCP keepalives below.
+        conn_max_age=3600,
         engine="django.contrib.gis.db.backends.postgis",
     )
 }
+# TCP keepalives so an idle connection isn't silently dropped by NAT/the pooler.
+DATABASES["default"].setdefault("OPTIONS", {}).update(
+    keepalives=1, keepalives_idle=30, keepalives_interval=10, keepalives_count=3
+)
 
 
 # Password validation

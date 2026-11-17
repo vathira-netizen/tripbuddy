@@ -8,9 +8,13 @@ import { initials, monogramAccent, type Connection } from "@/lib/buddies";
 import {
   getUnreadSummary,
   listConversations,
+  listTripChats,
+  notifyUnreadChanged,
+  type TripChat,
   type UnreadSummary,
 } from "@/lib/messages";
 import { MessageThread } from "@/components/MessageThread";
+import { TripChatThread } from "@/components/TripChatThread";
 import { FormError } from "@/components/ui";
 
 /** Lucide `message-circle`, inlined — matches the other icons already inlined across the redesign. */
@@ -41,8 +45,10 @@ function MessagesInner() {
   const router = useRouter();
   const params = useSearchParams();
   const selectedId = params.get("c");
+  const selectedTripId = params.get("t");
 
   const [conversations, setConversations] = useState<Connection[]>([]);
+  const [groups, setGroups] = useState<TripChat[]>([]);
   const [summary, setSummary] = useState<UnreadSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,13 +59,15 @@ function MessagesInner() {
     const run = async () => {
       setLoading(true);
       try {
-        const [rows, unread] = await Promise.all([
+        const [rows, unread, trips] = await Promise.all([
           listConversations(),
           getUnreadSummary(),
+          listTripChats().catch(() => [] as TripChat[]),
         ]);
         if (cancelled) return;
         setConversations(rows);
         setSummary(unread);
+        setGroups(trips);
       } catch {
         if (!cancelled) setError("Could not load your conversations.");
       } finally {
@@ -78,8 +86,13 @@ function MessagesInner() {
     [conversations, selectedId],
   );
 
+  const selectedGroup = useMemo(
+    () => groups.find((g) => String(g.id) === selectedTripId) ?? null,
+    [groups, selectedTripId],
+  );
+
+  // Opening a thread marks it read, so drop its badge immediately.
   const select = (connection: Connection) => {
-    // Opening a thread marks it read, so drop its badge immediately.
     setSummary((current) => {
       if (!current) return current;
       const { [String(connection.id)]: cleared = 0, ...rest } =
@@ -91,6 +104,24 @@ function MessagesInner() {
       };
     });
     router.replace(`/messages?c=${connection.id}`, { scroll: false });
+  };
+
+  const selectGroup = (group: TripChat) => {
+    setGroups((current) =>
+      current.map((g) => (g.id === group.id ? { ...g, unread: 0 } : g)),
+    );
+    setSummary((current) => {
+      if (!current) return current;
+      const { [String(group.id)]: cleared = 0, ...rest } = current.unread_by_trip;
+      return {
+        ...current,
+        unread_messages: Math.max(0, current.unread_messages - cleared),
+        unread_by_trip: rest,
+      };
+    });
+    router.replace(`/messages?t=${group.id}`, { scroll: false });
+    // The thread marks itself read on mount; refresh the navbar once it has.
+    setTimeout(notifyUnreadChanged, 1500);
   };
 
   return (
@@ -110,7 +141,7 @@ function MessagesInner() {
         </p>
       )}
 
-      {!loading && conversations.length === 0 && !error && (
+      {!loading && conversations.length === 0 && groups.length === 0 && !error && (
         <div className="rounded-2xl border border-line bg-surface p-8 text-center">
           <p className="font-serif text-xl text-brand-teal">No conversations yet.</p>
           <p className="mt-1 text-sm text-text-subtle">
@@ -123,16 +154,67 @@ function MessagesInner() {
         </div>
       )}
 
-      {!loading && conversations.length > 0 && (
+      {!loading && (conversations.length > 0 || groups.length > 0) && (
         <div className="grid gap-4 lg:grid-cols-[18rem_1fr]">
           <nav
             aria-label="Conversations"
             className="h-fit rounded-2xl border border-line bg-surface p-2"
           >
+            {groups.length > 0 && (
+              <>
+                <p className="px-2.5 pb-1 pt-1.5 text-[11px] font-bold uppercase tracking-wide text-brand-teal">
+                  Trip groups
+                </p>
+                <ul className="space-y-1 pb-2">
+                  {groups.map((group) => (
+                    <li key={group.id}>
+                      <button
+                        type="button"
+                        onClick={() => selectGroup(group)}
+                        aria-current={group.id === selectedGroup?.id ? "true" : undefined}
+                        className={`flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 text-left transition ${
+                          group.id === selectedGroup?.id
+                            ? "bg-surface-alt"
+                            : "hover:bg-surface-alt/60"
+                        }`}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-teal text-base text-background"
+                        >
+                          👥
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-semibold text-foreground">
+                            {group.title}
+                          </span>
+                          <span className="block truncate text-xs text-text-subtle">
+                            {group.last_message
+                              ? `${group.last_message.sender_name}: ${group.last_message.body}`
+                              : group.members.join(", ")}
+                          </span>
+                        </span>
+                        {group.unread > 0 && (
+                          <span className="shrink-0 rounded-full bg-brand-coral px-2 py-0.5 text-xs font-bold text-white">
+                            {group.unread}
+                            <span className="sr-only"> unread messages</span>
+                          </span>
+                        )}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                {conversations.length > 0 && (
+                  <p className="px-2.5 pb-1 text-[11px] font-bold uppercase tracking-wide text-brand-teal">
+                    Direct
+                  </p>
+                )}
+              </>
+            )}
             <ul className="space-y-1">
               {conversations.map((conversation) => {
                 const unread = summary?.unread_by_connection[String(conversation.id)] ?? 0;
-                const active = conversation.id === selected?.id;
+                const active = !selectedGroup && conversation.id === selected?.id;
                 const accent = monogramAccent(
                   conversation.other?.supabase_user_id ?? String(conversation.id),
                 );
@@ -184,7 +266,14 @@ function MessagesInner() {
             </ul>
           </nav>
 
-          {selected ? (
+          {selectedGroup ? (
+            <TripChatThread
+              key={`t${selectedGroup.id}`}
+              tripId={selectedGroup.id}
+              title={selectedGroup.title}
+              members={selectedGroup.members}
+            />
+          ) : selected ? (
             <MessageThread key={selected.id} connection={selected} />
           ) : (
             <div className="flex items-center justify-center rounded-2xl border border-line bg-surface p-12 text-center">

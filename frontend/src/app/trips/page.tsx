@@ -7,7 +7,8 @@ import { useSearchParams } from "next/navigation";
 
 import { api } from "@/lib/api";
 import { Destination } from "@/lib/discover";
-import { createTrip, listTrips, openTripToJoin, Trip } from "@/lib/trips";
+import { type Connection, listConnections } from "@/lib/buddies";
+import { createTrip, inviteCollaborator, listTrips, openTripToJoin, Trip } from "@/lib/trips";
 import { FormError, Input, Select } from "@/components/ui";
 
 /** Lucide `arrow-right`, inlined — matches the `heart`/`map-pin` icons already inlined elsewhere. */
@@ -47,6 +48,8 @@ function TripsInner() {
   const [budget, setBudget] = useState("");
   const [openToJoin, setOpenToJoin] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [friends, setFriends] = useState<Connection[]>([]);
+  const [invitees, setInvitees] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let cancelled = false;
@@ -56,11 +59,14 @@ function TripsInner() {
         .get<{ results: Destination[] }>("/api/destinations/")
         .then((p) => p.results)
         .catch(() => [] as Destination[]),
+      // Friends to start a group trip with; the form still works without them.
+      listConnections({ status: "accepted" }).catch(() => [] as Connection[]),
     ])
-      .then(([tripsData, destData]) => {
+      .then(([tripsData, destData, conns]) => {
         if (cancelled) return;
         setTrips(tripsData);
         setDestinations(destData);
+        setFriends(conns);
         if (prefillDestination) {
           const match = destData.find((d) => String(d.id) === prefillDestination);
           if (match) {
@@ -93,6 +99,18 @@ function TripsInner() {
       if (openToJoin) {
         trip = await openTripToJoin(trip.id);
       }
+      // Adding friends is what turns a trip into a group (with its own chat).
+      // Allow partial failure: the trip exists either way, and the trip page
+      // can invite whoever didn't make it.
+      const results = await Promise.allSettled(
+        [...invitees].map((id) => inviteCollaborator(trip.id, id)),
+      );
+      const last = results.findLast((r) => r.status === "fulfilled");
+      if (last?.status === "fulfilled") trip = last.value;
+      if (results.some((r) => r.status === "rejected")) {
+        setError("Trip created, but some friends couldn't be added. Invite them from the trip page.");
+      }
+      setInvitees(new Set());
       setTrips((prev) => [trip, ...prev]);
       setTitle("");
       setDestination("");
@@ -167,6 +185,45 @@ function TripsInner() {
           onChange={(e) => setBudget(e.target.value)}
           placeholder="e.g. 15000"
         />
+        {friends.length > 0 && (
+          <fieldset className="space-y-1.5">
+            <legend className="text-sm font-semibold text-brand-teal">
+              Plan with friends (creates a group chat)
+            </legend>
+            <div className="flex flex-wrap gap-2">
+              {friends.map((c) => {
+                const id = c.other!.supabase_user_id;
+                const on = invitees.has(id);
+                return (
+                  <label
+                    key={c.id}
+                    className={`cursor-pointer rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                      on
+                        ? "border-brand-teal bg-brand-teal text-background"
+                        : "border-[#d5d9d0] text-brand-teal hover:border-brand-teal"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="sr-only"
+                      checked={on}
+                      onChange={() =>
+                        setInvitees((prev) => {
+                          const next = new Set(prev);
+                          if (on) next.delete(id);
+                          else next.add(id);
+                          return next;
+                        })
+                      }
+                    />
+                    {on ? "✓ " : "+ "}
+                    {c.other!.display_name}
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+        )}
         <label className="flex items-center gap-2 text-sm text-brand-teal">
           <input
             type="checkbox"

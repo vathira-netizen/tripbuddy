@@ -17,7 +17,7 @@ import unicodedata
 
 from rest_framework import serializers
 
-from apps.messaging.models import Message
+from apps.messaging.models import Message, TripMessage
 
 # Long enough for a real message, short enough that a single row cannot be used
 # to push megabytes through Realtime to the other participant.
@@ -99,9 +99,54 @@ class MessageSerializer(serializers.ModelSerializer):
         return sanitise_body(value)
 
 
+class TripMessageSerializer(serializers.ModelSerializer):
+    """A group-chat message. ``seen_by`` counts the *other* members who have
+    read up to it (needs ``reads`` — [(user_id, last_read_at)] — in context)."""
+
+    sender = serializers.UUIDField(
+        source="sender.profile.supabase_user_id", read_only=True
+    )
+    sender_name = serializers.CharField(
+        source="sender.profile.display_name", read_only=True
+    )
+    is_mine = serializers.SerializerMethodField()
+    seen_by = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TripMessage
+        fields = ["id", "trip", "sender", "sender_name", "is_mine", "body",
+                  "seen_by", "created_at"]
+        read_only_fields = [f for f in fields if f != "body"]
+
+    def get_is_mine(self, obj) -> bool:
+        request = self.context.get("request")
+        return bool(request and obj.sender_id == request.user.pk)
+
+    def get_seen_by(self, obj) -> int:
+        return sum(
+            1
+            for user_id, read_at in self.context.get("reads", [])
+            if user_id != obj.sender_id and read_at >= obj.created_at
+        )
+
+    def validate_body(self, value):
+        return sanitise_body(value)
+
+
+class TripChatSerializer(serializers.Serializer):
+    """One row of the group list on the Messages page."""
+
+    id = serializers.IntegerField()
+    title = serializers.CharField()
+    members = serializers.ListField(child=serializers.CharField())
+    unread = serializers.IntegerField()
+    last_message = serializers.DictField(allow_null=True)
+
+
 class UnreadSummarySerializer(serializers.Serializer):
     """What the navbar badges need, in one request."""
 
     unread_messages = serializers.IntegerField()
     pending_requests = serializers.IntegerField()
     unread_by_connection = serializers.DictField(child=serializers.IntegerField())
+    unread_by_trip = serializers.DictField(child=serializers.IntegerField())

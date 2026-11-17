@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { getUnreadSummary, type UnreadSummary } from "@/lib/messages";
+import { getUnreadSummary, UNREAD_EVENT, type UnreadSummary } from "@/lib/messages";
 
 // Routes where the app nav shouldn't show: landing + auth + onboarding.
 const HIDDEN = ["/", "/login", "/register", "/reset-password", "/update-password", "/onboarding"];
@@ -20,10 +20,11 @@ const LINKS = [
   { href: "/profile", label: "Profile" },
 ];
 
-// The badges are a convenience, not a notification system: a poll keeps them
-// roughly current without a second Realtime subscription living in the chrome
-// of every page. Deliberately slow — the thread itself is live.
-const POLL_MS = 60_000;
+// A poll keeps the badges current without a second Realtime subscription living
+// in the chrome of every page (Realtime also isn't available for group chats).
+// Opening/reading a thread fires UNREAD_EVENT for an immediate refresh, so this
+// only has to catch messages that arrive while you're elsewhere.
+const POLL_MS = 10_000;
 
 export function Nav() {
   const pathname = usePathname();
@@ -46,17 +47,22 @@ export function Nav() {
     };
 
     void load();
-    const timer = setInterval(() => void load(), POLL_MS);
+    // Skip hidden tabs: no point spending a request on a badge nobody sees.
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") void load();
+    }, POLL_MS);
 
-    // Re-check when the tab regains focus, so a badge cleared elsewhere or a
-    // message received while away shows up without waiting out the interval.
-    const onFocus = () => void load();
-    window.addEventListener("focus", onFocus);
+    // Re-check when the tab regains focus, and when a thread marks itself read
+    // or the user sends/receives, so badges move immediately.
+    const refresh = () => void load();
+    window.addEventListener("focus", refresh);
+    window.addEventListener(UNREAD_EVENT, refresh);
 
     return () => {
       cancelled = true;
       clearInterval(timer);
-      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener(UNREAD_EVENT, refresh);
     };
     // pathname: navigating (e.g. opening a thread, which marks it read) should
     // refresh the counts.
