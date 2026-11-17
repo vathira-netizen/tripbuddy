@@ -1,9 +1,15 @@
 from django.contrib import admin
 
-from apps.messaging.models import Message
+from apps.messaging.models import Message, TripMessage
 
 
 @admin.register(Message)
 class MessageAdmin(admin.ModelAdmin):
     list_display = ("connection", "sender", "created_at", "read_at")
+    search_fields = ("sender__email", "body")
+
+
+@admin.register(TripMessage)
+class TripMessageAdmin(admin.ModelAdmin):
+    list_display = ("trip", "sender", "created_at")
     search_fields = ("sender__email", "body")

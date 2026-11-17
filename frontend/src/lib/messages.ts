@@ -28,7 +28,17 @@ export interface Message {
   is_mine: boolean;
   body: string;
   read_at: string | null;
+  /** Group chat only: how many other members have read up to this message. */
+  seen_by?: number;
   created_at: string;
+}
+
+export interface TripChat {
+  id: number;
+  title: string;
+  members: string[];
+  unread: number;
+  last_message: { body: string; sender_name: string; created_at: string } | null;
 }
 
 export interface MessagePage {
@@ -43,7 +53,13 @@ export interface UnreadSummary {
   pending_requests: number;
   /** connection id (as a string) -> unread count */
   unread_by_connection: Record<string, number>;
+  /** trip id (as a string) -> unread group-chat messages */
+  unread_by_trip: Record<string, number>;
 }
+
+/** Fired after anything that changes unread counts, so the navbar refetches now. */
+export const UNREAD_EVENT = "tb:unread-changed";
+export const notifyUnreadChanged = () => window.dispatchEvent(new Event(UNREAD_EVENT));
 
 /** Must match MAX_BODY_LENGTH in backend/apps/messaging/serializers.py. */
 export const MAX_BODY_LENGTH = 2000;
@@ -62,6 +78,19 @@ export const markConversationRead = (connectionId: number) =>
     `/api/connections/${connectionId}/messages/read/`,
     {},
   );
+
+// --- Trip group chat (API-only; the open thread polls, see ChatPanel) -------
+
+export const listTripMessages = (tripId: number) =>
+  api.get<MessagePage>(`/api/trips/${tripId}/messages/`);
+
+export const sendTripMessage = (tripId: number, body: string) =>
+  api.post<Message>(`/api/trips/${tripId}/messages/`, { body });
+
+export const markTripChatRead = (tripId: number) =>
+  api.post<{ ok: boolean }>(`/api/trips/${tripId}/messages/read/`, {});
+
+export const listTripChats = () => api.get<TripChat[]>("/api/trip-chats/");
 
 export const getUnreadSummary = () =>
   api.get<UnreadSummary>("/api/messages/summary/");

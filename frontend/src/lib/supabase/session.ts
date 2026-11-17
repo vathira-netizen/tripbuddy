@@ -29,11 +29,15 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  // IMPORTANT: getUser() revalidates the token with Supabase; do not trust
-  // getSession() for authorization decisions.
+  // getClaims() verifies the JWT signature locally against Supabase's cached
+  // public keys (and still refreshes an expired session), so route guarding
+  // costs no network round trip. getUser() here hit the Supabase Auth server on
+  // every navigation *and* every prefetch — the biggest source of page-load lag.
+  // Do not trust getSession() for authorization decisions.
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data: claims,
+  } = await supabase.auth.getClaims();
+  const user = claims?.claims ?? null;
 
   const { pathname } = request.nextUrl;
   const isAuthRoute =
