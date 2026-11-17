@@ -436,7 +436,6 @@ export default async function Home() {
 
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-background to-transparent" />
         </div>
-        <p className="mt-2 text-xs text-text-subtle">Illustrative screens with sample names and amounts.</p>
       </section>
 
       {/* ---------- Pitch ---------- */}
