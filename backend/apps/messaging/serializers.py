@@ -143,10 +143,25 @@ class TripChatSerializer(serializers.Serializer):
     last_message = serializers.DictField(allow_null=True)
 
 
+class NotificationSerializer(serializers.Serializer):
+    """One row in the navbar bell — see messaging.views._notifications."""
+
+    kind = serializers.ChoiceField(
+        choices=["message", "trip_chat", "trip_join", "buddy_request"]
+    )
+    key = serializers.CharField()
+    title = serializers.CharField()
+    preview = serializers.CharField(allow_blank=True)
+    href = serializers.CharField()
+    created_at = serializers.DateTimeField()
+
+
 class UnreadSummarySerializer(serializers.Serializer):
     """What the navbar badges need, in one request."""
 
     unread_messages = serializers.IntegerField()
     pending_requests = serializers.IntegerField()
+    pending_trip_joins = serializers.IntegerField()
     unread_by_connection = serializers.DictField(child=serializers.IntegerField())
     unread_by_trip = serializers.DictField(child=serializers.IntegerField())
+    notifications = NotificationSerializer(many=True)
