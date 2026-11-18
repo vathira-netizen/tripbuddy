@@ -9,8 +9,12 @@ const nextConfig: NextConfig = {
       new URL("https://picsum.photos/**"),
       // Real destination photos, from the Wikipedia summary API.
       new URL("https://upload.wikimedia.org/**"),
-      // User-uploaded avatars/trip covers, from Supabase Storage.
-      new URL(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/**`),
+      // User-uploaded avatars/trip covers, from Supabase Storage. Skipped when
+      // the env var is absent (e.g. CI), where `new URL("undefined/…")` would
+      // throw and fail the whole build.
+      ...(process.env.NEXT_PUBLIC_SUPABASE_URL
+        ? [new URL(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/**`)]
+        : []),
     ],
   },
 };
