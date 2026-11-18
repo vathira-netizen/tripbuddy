@@ -162,12 +162,20 @@ class OpenTripSerializer(serializers.ModelSerializer):
     owner_name = serializers.SerializerMethodField()
     owner_avatar_url = serializers.SerializerMethodField()
     collaborator_count = serializers.IntegerField(source="collaborators.count", read_only=True)
+    destination_name = serializers.CharField(
+        source="destination.name", read_only=True, default=""
+    )
+    destination_slug = serializers.CharField(
+        source="destination.slug", read_only=True, default=""
+    )
 
     class Meta:
         model = Trip
         fields = [
             "id",
             "title",
+            "destination_name",
+            "destination_slug",
             "start_date",
             "end_date",
             "nights",

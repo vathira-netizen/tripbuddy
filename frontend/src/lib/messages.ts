@@ -48,9 +48,23 @@ export interface MessagePage {
   results: Message[];
 }
 
+export interface AppNotification {
+  kind: "message" | "trip_chat" | "trip_join" | "buddy_request";
+  /** Changes whenever there's something new — used to spot unseen items. */
+  key: string;
+  title: string;
+  preview: string;
+  href: string;
+  created_at: string;
+}
+
 export interface UnreadSummary {
   unread_messages: number;
   pending_requests: number;
+  /** Pending requests to join trips you own. */
+  pending_trip_joins: number;
+  /** Newest first; what the navbar bell lists. */
+  notifications: AppNotification[];
   /** connection id (as a string) -> unread count */
   unread_by_connection: Record<string, number>;
   /** trip id (as a string) -> unread group-chat messages */

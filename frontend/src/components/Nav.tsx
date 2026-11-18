@@ -3,9 +3,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { getUnreadSummary, UNREAD_EVENT, type UnreadSummary } from "@/lib/messages";
+import { NotificationBell } from "@/components/NotificationBell";
 
 // Routes where the app nav shouldn't show: landing + auth + onboarding.
 const HIDDEN = ["/", "/login", "/register", "/reset-password", "/update-password", "/onboarding"];
@@ -13,7 +16,7 @@ const HIDDEN = ["/", "/login", "/register", "/reset-password", "/update-password
 const LINKS = [
   { href: "/discover", label: "Discover" },
   { href: "/chat", label: "Assistant" },
-  { href: "/trips", label: "Trips" },
+  { href: "/trips", label: "Trips", badge: "trips" as const },
   { href: "/buddies", label: "Buddies" },
   { href: "/connections", label: "Requests", badge: "requests" as const },
   { href: "/messages", label: "Messages", badge: "messages" as const },
@@ -30,7 +33,11 @@ export function Nav() {
   const pathname = usePathname();
   const hidden = HIDDEN.includes(pathname) || pathname.startsWith("/share/");
 
+  const router = useRouter();
   const [summary, setSummary] = useState<UnreadSummary | null>(null);
+  // Notification keys already seen this session; null until the first load,
+  // so what's waiting at sign-in doesn't arrive as a burst of toasts.
+  const seen = useRef<Set<string> | null>(null);
 
   useEffect(() => {
     if (hidden) return;
@@ -40,7 +47,23 @@ export function Nav() {
     const load = async () => {
       try {
         const next = await getUnreadSummary();
-        if (!cancelled) setSummary(next);
+        if (cancelled) return;
+        setSummary(next);
+        const items = next.notifications ?? [];
+        if (seen.current === null) {
+          seen.current = new Set(items.map((n) => n.key));
+          return;
+        }
+        // Pop a toast for anything new that isn't about the page you're on.
+        for (const n of items) {
+          if (seen.current.has(n.key)) continue;
+          seen.current.add(n.key);
+          if (window.location.pathname + window.location.search === n.href) continue;
+          toast(n.title, {
+            description: n.preview || undefined,
+            action: { label: "View", onClick: () => router.push(n.href) },
+          });
+        }
       } catch {
         // A signed-out or offline user simply gets no badges.
       }
@@ -66,7 +89,7 @@ export function Nav() {
     };
     // pathname: navigating (e.g. opening a thread, which marks it read) should
     // refresh the counts.
-  }, [hidden, pathname]);
+  }, [hidden, pathname, router]);
 
   // Public read-only share pages have no app chrome (viewers may be logged out).
   if (hidden) return null;
@@ -74,6 +97,7 @@ export function Nav() {
   const counts = {
     messages: summary?.unread_messages ?? 0,
     requests: summary?.pending_requests ?? 0,
+    trips: summary?.pending_trip_joins ?? 0,
   };
 
   return (
@@ -112,6 +136,9 @@ export function Nav() {
               </Link>
             );
           })}
+        </div>
+        <div className="ml-auto">
+          <NotificationBell items={summary?.notifications ?? []} />
         </div>
       </div>
     </nav>
