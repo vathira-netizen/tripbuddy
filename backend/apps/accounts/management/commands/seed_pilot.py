@@ -16,10 +16,12 @@ appear in buddy search. The command refuses to run when ``DEBUG`` is off unless
 ``--force`` is passed, and ``--undo`` removes everything it made.
 """
 
+import json
 import random
 import uuid
 from datetime import date, timedelta
 from decimal import Decimal
+from pathlib import Path
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -82,6 +84,18 @@ FIRST_NAMES = FEMALE_NAMES + MALE_NAMES
 # static URLs, 0-99 per gender). Fictitious people only; matched to the name's
 # gender so a seeded "Asha" doesn't carry a man's face.
 PORTRAIT_URL = "https://randomuser.me/api/portraits/{kind}/{n}.jpg"
+
+# Photos of Indian travellers from Unsplash, written by fetch_pilot_avatars.
+# Used first; randomuser.me covers anyone beyond the list (or a missing file).
+AVATARS_JSON = Path(__file__).resolve().parents[4] / "data" / "pilot_avatars.json"
+
+
+def _load_avatars():
+    try:
+        data = json.loads(AVATARS_JSON.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"women": [], "men": []}
+    return {k: [p["url"] for p in data.get(k, [])] for k in ("women", "men")}
 
 LAST_NAMES = [
     "Nair", "Sharma", "Iyer", "Patel", "Reddy", "Menon", "Gupta", "Rao",
@@ -161,6 +175,8 @@ class Command(BaseCommand):
 
     def _seed_profiles(self, count):
         profiles = []
+        avatars = _load_avatars()
+        used = {"women": 0, "men": 0}
         for index in range(count):
             handle = f"{PILOT_PREFIX}{index:04d}"
             rng = random.Random(handle)  # deterministic per pilot user
@@ -183,11 +199,13 @@ class Command(BaseCommand):
             first = rng.choice(FIRST_NAMES)
             female = first in FEMALE_NAMES
             name = f"{first} {rng.choice(LAST_NAMES)}"
-            # Keyed on the index (not the rng) so no two pilot users share a
-            # face; the portrait set has 100 per gender and the cap is 100.
-            avatar_url = PORTRAIT_URL.format(
-                kind="women" if female else "men", n=index % 100
-            )
+            # Each gender's photos are handed out in order, so no two pilot
+            # users share a face (the dataset is capped at 100 records).
+            kind = "women" if female else "men"
+            n = used[kind]
+            used[kind] += 1
+            pool = avatars[kind]
+            avatar_url = pool[n] if n < len(pool) else PORTRAIT_URL.format(kind=kind, n=n % 100)
             interests = rng.sample(INTEREST_TAGS, rng.randint(3, 6))
             languages = rng.sample(LANGUAGES, rng.randint(1, 3))
             if "english" not in languages and rng.random() < 0.7:
