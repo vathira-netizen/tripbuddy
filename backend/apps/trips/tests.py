@@ -464,9 +464,36 @@ def test_open_trips_lists_only_opted_in_trips_for_a_destination(settings_secret)
     assert [t["title"] for t in resp.data] == ["Open one"]
     # Narrow shape: no budget/share fields leaked to a non-member.
     assert set(resp.data[0]) == {
-        "id", "title", "start_date", "end_date", "nights",
-        "owner_name", "owner_avatar_url", "collaborator_count",
+        "id", "title", "destination_name", "destination_slug", "start_date",
+        "end_date", "nights", "owner_name", "owner_avatar_url", "collaborator_count",
     }
+
+
+@pytest.mark.django_db
+def test_open_trips_search_matches_title_or_destination_and_hides_mine(settings_secret):
+    from apps.destinations.models import Destination
+    from django.contrib.gis.geos import Point
+
+    dest = Destination.objects.create(
+        name="Hampi", slug="hampi-search", point=Point(76.4, 15.3, srid=4326),
+        avg_daily_budget=1200, budget_tier="budget", state="Karnataka",
+    )
+    owner = authed_client(str(uuid.uuid4()), "owner@example.com")
+    by_dest = owner.post(
+        "/api/trips/", {"title": "Ruins weekend", "destination": dest.id}, format="json"
+    ).data["id"]
+    by_title = owner.post("/api/trips/", {"title": "Hampi boulders"}, format="json").data["id"]
+    other = owner.post("/api/trips/", {"title": "Goa beaches"}, format="json").data["id"]
+    for trip_id in (by_dest, by_title, other):
+        owner.post(f"/api/trips/{trip_id}/open-to-join/")
+
+    stranger = authed_client(str(uuid.uuid4()), "stranger@example.com")
+    found = stranger.get("/api/trips/open/?q=hampi&exclude_mine=true").data
+    assert sorted(t["title"] for t in found) == ["Hampi boulders", "Ruins weekend"]
+    assert stranger.get("/api/trips/open/?q=karnataka").data[0]["destination_name"] == "Hampi"
+
+    # The owner's own trips are left out of their search.
+    assert owner.get("/api/trips/open/?q=hampi&exclude_mine=true").data == []
 
 
 @pytest.mark.django_db

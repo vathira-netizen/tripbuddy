@@ -366,3 +366,28 @@ def test_summary_ignores_non_accepted_connections(settings_secret):
 @pytest.mark.django_db
 def test_summary_requires_authentication():
     assert APIClient().get("/api/messages/summary/").status_code == 401
+
+
+@pytest.mark.django_db
+def test_summary_lists_notifications_for_messages_and_trip_joins(accepted):
+    from apps.trips.models import Trip, TripJoinRequest
+
+    connection, (alice_user, alice), (bob_user, bob) = accepted
+    Message.objects.create(connection=connection, sender=alice_user, body="hello bob")
+    trip = Trip.objects.create(owner=bob_user, title="Goa week", is_open_to_join=True)
+    carol_user, _ = make_traveller("carol")
+    TripJoinRequest.objects.create(trip=trip, requester=carol_user, message="can I come?")
+
+    summary = client_for(bob).get("/api/messages/summary/").data
+
+    assert summary["pending_trip_joins"] == 1
+    kinds = {n["kind"]: n for n in summary["notifications"]}
+    assert kinds["trip_join"]["title"] == "Carol wants to join Goa week"
+    assert kinds["trip_join"]["href"] == f"/trips/{trip.pk}"
+    assert kinds["message"]["preview"] == "hello bob"
+    assert kinds["message"]["href"] == f"/messages?c={connection.pk}"
+
+    # Alice owns no trip and has nothing unread: her bell is empty.
+    alice_summary = client_for(alice).get("/api/messages/summary/").data
+    assert alice_summary["pending_trip_joins"] == 0
+    assert alice_summary["notifications"] == []

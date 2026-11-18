@@ -10,6 +10,7 @@ import { Destination } from "@/lib/discover";
 import { type Connection, listConnections } from "@/lib/buddies";
 import { createTrip, inviteCollaborator, listTrips, openTripToJoin, Trip } from "@/lib/trips";
 import { FormError, Input, Select } from "@/components/ui";
+import FindTripsToJoin from "@/components/FindTripsToJoin";
 
 /** Lucide `arrow-right`, inlined — matches the `heart`/`map-pin` icons already inlined elsewhere. */
 function ArrowRight({ className = "" }: { className?: string }) {
@@ -50,6 +51,7 @@ function TripsInner() {
   const [saving, setSaving] = useState(false);
   const [friends, setFriends] = useState<Connection[]>([]);
   const [invitees, setInvitees] = useState<Set<string>>(new Set());
+  const [tripQuery, setTripQuery] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -129,6 +131,16 @@ function TripsInner() {
     () => Object.fromEntries(destinations.map((d) => [d.id, d])),
     [destinations],
   );
+
+  // Filter your own trips by title or destination name, as you type.
+  const shownTrips = useMemo(() => {
+    const q = tripQuery.trim().toLowerCase();
+    if (!q) return trips;
+    return trips.filter((t) => {
+      const dest = t.destination ? destById[t.destination] : null;
+      return [t.title, dest?.name, dest?.state].some((v) => v?.toLowerCase().includes(q));
+    });
+  }, [trips, tripQuery, destById]);
 
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 space-y-8 px-4 py-6">
@@ -242,15 +254,29 @@ function TripsInner() {
       </form>
 
       <section className="space-y-3">
+        {trips.length > 0 && (
+          <input
+            type="search"
+            value={tripQuery}
+            onChange={(e) => setTripQuery(e.target.value)}
+            placeholder="Search your trips…"
+            aria-label="Search your trips"
+            className="w-full rounded-full border border-line-input bg-white px-4 py-2.5 text-sm outline-none focus:border-brand-teal"
+          />
+        )}
         {loading ? (
           <p className="text-sm text-text-subtle">Loading…</p>
         ) : trips.length === 0 ? (
           <p className="text-sm text-text-subtle">
             No trips yet — plan your first one above.
           </p>
+        ) : shownTrips.length === 0 ? (
+          <p className="text-sm text-text-subtle">
+            None of your trips match &ldquo;{tripQuery.trim()}&rdquo;.
+          </p>
         ) : (
           <ul className="grid gap-[18px] sm:grid-cols-2">
-            {trips.map((trip) => {
+            {shownTrips.map((trip) => {
               const photo = trip.destination ? destById[trip.destination] : null;
               const cover = trip.cover_image_url || photo?.image_url;
               return (
@@ -304,6 +330,8 @@ function TripsInner() {
           </ul>
         )}
       </section>
+
+      <FindTripsToJoin />
     </main>
   );
 }

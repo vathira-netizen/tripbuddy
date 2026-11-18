@@ -24,6 +24,7 @@ from rest_framework.views import APIView
 from apps.common.querysets import is_authenticated, visible_trips
 from apps.connections.models import Connection
 from apps.messaging.models import Message, TripChatRead, TripMessage
+from apps.trips.models import TripJoinRequest
 from apps.messaging.serializers import (
     MessageSerializer,
     TripChatSerializer,
@@ -193,15 +194,109 @@ class UnreadSummaryView(APIView):
 
         by_trip = {str(k): v for k, v in trip_unread_counts(user).items()}
 
+        trip_joins = list(
+            TripJoinRequest.objects.filter(
+                trip__owner=user, status=TripJoinRequest.Status.PENDING
+            ).select_related("trip", "requester__profile")[:NOTIFICATION_LIMIT]
+        )
+
         serializer = UnreadSummarySerializer(
             {
                 "unread_messages": sum(by_connection.values()) + sum(by_trip.values()),
                 "pending_requests": pending,
+                "pending_trip_joins": TripJoinRequest.objects.filter(
+                    trip__owner=user, status=TripJoinRequest.Status.PENDING
+                ).count(),
                 "unread_by_connection": by_connection,
                 "unread_by_trip": by_trip,
+                "notifications": _notifications(user, by_connection, by_trip, trip_joins),
             }
         )
         return Response(serializer.data)
+
+
+NOTIFICATION_LIMIT = 20
+
+
+def _name(user):
+    profile = getattr(user, "profile", None)
+    return (profile.display_name if profile else "") or "A traveller"
+
+
+def _notifications(user, by_connection, by_trip, trip_joins):
+    """The bell's list, newest first — derived from existing rows, not stored.
+
+    One item per conversation / trip chat (with its unread count and latest
+    message), per pending buddy request, and per pending trip-join request.
+    ``key`` changes whenever there's something new, so the client can tell
+    which items it hasn't seen yet.
+    """
+    items = []
+
+    for conn_id, n in by_connection.items():
+        latest = (
+            Message.objects.filter(connection_id=conn_id, read_at__isnull=True)
+            .exclude(sender=user)
+            .select_related("sender__profile")
+            .order_by("-created_at")
+            .first()
+        )
+        if latest:
+            items.append({
+                "kind": "message",
+                "key": f"message:{latest.pk}",
+                "title": f"{_name(latest.sender)} sent you "
+                         + ("a message" if n == 1 else f"{n} messages"),
+                "preview": latest.body[:100],
+                "href": f"/messages?c={conn_id}",
+                "created_at": latest.created_at,
+            })
+
+    for trip_id, n in by_trip.items():
+        latest = (
+            TripMessage.objects.filter(trip_id=trip_id)
+            .exclude(sender=user)
+            .select_related("sender__profile", "trip")
+            .order_by("-created_at")
+            .first()
+        )
+        if latest:
+            items.append({
+                "kind": "trip_chat",
+                "key": f"trip_chat:{latest.pk}",
+                "title": f"{n} new message{'s' if n != 1 else ''} in {latest.trip.title}",
+                "preview": f"{_name(latest.sender)}: {latest.body[:90]}",
+                "href": f"/messages?t={trip_id}",
+                "created_at": latest.created_at,
+            })
+
+    for jr in trip_joins:
+        items.append({
+            "kind": "trip_join",
+            "key": f"trip_join:{jr.pk}",
+            "title": f"{_name(jr.requester)} wants to join {jr.trip.title}",
+            "preview": jr.message,
+            "href": f"/trips/{jr.trip_id}",
+            "created_at": jr.created_at,
+        })
+
+    buddy_requests = (
+        Connection.objects.filter(addressee=user, status=Connection.Status.PENDING)
+        .select_related("requester__profile")
+        .order_by("-created_at")[:NOTIFICATION_LIMIT]
+    )
+    for c in buddy_requests:
+        items.append({
+            "kind": "buddy_request",
+            "key": f"buddy_request:{c.pk}",
+            "title": f"{_name(c.requester)} wants to be your travel buddy",
+            "preview": "",
+            "href": "/connections",
+            "created_at": c.created_at,
+        })
+
+    items.sort(key=lambda i: i["created_at"], reverse=True)
+    return items[:NOTIFICATION_LIMIT]
 
 
 # --- Trip group chat ---------------------------------------------------------
