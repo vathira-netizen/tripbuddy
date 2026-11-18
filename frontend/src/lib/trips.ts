@@ -43,6 +43,9 @@ export interface Trip {
 export interface OpenTrip {
   id: number;
   title: string;
+  /** Empty when the trip has no destination picked yet. */
+  destination_name: string;
+  destination_slug: string;
   start_date: string | null;
   end_date: string | null;
   nights: number;
@@ -173,6 +176,12 @@ export const closeTripToJoin = (tripId: number) =>
 export const listOpenTrips = (destinationId?: number) =>
   api.get<OpenTrip[]>(
     `/api/trips/open/${destinationId ? `?destination=${destinationId}` : ""}`,
+  );
+
+/** Search every open-to-join trip by title, destination, state or owner. */
+export const searchOpenTrips = (q: string) =>
+  api.get<OpenTrip[]>(
+    `/api/trips/open/?exclude_mine=true${q ? `&q=${encodeURIComponent(q)}` : ""}`,
   );
 
 export const requestToJoinTrip = (tripId: number, message?: string) =>

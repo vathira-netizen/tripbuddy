@@ -1,7 +1,7 @@
 import csv
 
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import F, Q
 from django.http import HttpResponse
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiParameter, extend_schema
@@ -185,7 +185,11 @@ class TripViewSet(
                     "this is how a stranger on a destination page finds a "
                     "trip to ask to join. Returns the narrow OpenTripSerializer "
                     "shape, never budget/share/collaborator details.",
-        parameters=[OpenApiParameter("destination", int, required=False)],
+        parameters=[
+            OpenApiParameter("destination", int, required=False),
+            OpenApiParameter("q", str, required=False),
+            OpenApiParameter("exclude_mine", bool, required=False),
+        ],
         responses=OpenTripSerializer(many=True),
     )
     @action(detail=False, methods=["get"], url_path="open")
@@ -199,6 +203,22 @@ class TripViewSet(
         destination_id = request.query_params.get("destination")
         if destination_id:
             qs = qs.filter(destination_id=destination_id)
+        # ?q= searches trip title, destination, state and owner name — the
+        # "Find trips to join" search on /trips. Trips you're already on are
+        # left out there, since you can't ask to join them.
+        q = (request.query_params.get("q") or "").strip()
+        if q:
+            qs = qs.filter(
+                Q(title__icontains=q)
+                | Q(destination__name__icontains=q)
+                | Q(destination__state__icontains=q)
+                | Q(owner__profile__display_name__icontains=q)
+            )
+        if request.query_params.get("exclude_mine") == "true":
+            qs = qs.exclude(owner=request.user).exclude(collaborators__user=request.user)
+        qs = qs.select_related("destination").order_by(
+            F("start_date").asc(nulls_last=True), "-created_at"
+        )[:50]
         serializer = OpenTripSerializer(qs, many=True)
         return Response(serializer.data)
 
