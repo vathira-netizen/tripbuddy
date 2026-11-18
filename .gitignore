@@ -26,3 +26,5 @@ coverage.xml
 frontend/node_modules/
 frontend/.next/
 frontend/out/
+# Unsplash search results, curated into pilot_avatars.json
+backend/data/pilot_avatar_candidates.json
