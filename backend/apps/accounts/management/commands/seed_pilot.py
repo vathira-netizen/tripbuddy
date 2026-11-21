@@ -125,6 +125,17 @@ BIO_TEMPLATES = [
     "Looking for buddies who love {a} as much as I do. {city} is home.",
     "{city} local who travels for the {a}, stays for the {b}.",
     "Slow traveller. Into {a}, {b} and long train rides out of {city}.",
+    "Office in {city} on weekdays, out chasing {a} on weekends.",
+    "Will plan the whole itinerary if you handle the {b} recommendations. {city}-based.",
+    "First trip was all about {a}; now I can't stop. Usually leaving from {city}.",
+    "Budget spreadsheets, early starts and lots of {a}. From {city}.",
+    "Happy to split cabs and stories. Big on {a}, bigger on {b}.",
+    "{city} to anywhere with good {b}. Bonus points for {a}.",
+    "Collecting sunrises and {a} spots. Say hi if you're near {city}.",
+    "I travel light and plan loosely. {a}, {b}, repeat. Home base: {city}.",
+    "Learning that the best {b} is never in the guidebook. {city} born and raised.",
+    "Need a buddy for my next {a} trip out of {city}. I bring snacks.",
+    "Part-time photographer, full-time {b} fan. Exploring beyond {city}.",
 ]
 
 DEFAULTS = {"profiles": 60, "connections": 25, "trips": 15}
@@ -188,6 +199,8 @@ class Command(BaseCommand):
         profiles = []
         avatars = _load_avatars()
         used = {"women": 0, "men": 0}
+        # No two pilot travellers share a bio (see _unique_bio).
+        bios_taken = set()
         for index in range(count):
             handle = f"{PILOT_PREFIX}{index:04d}"
             rng = random.Random(handle)  # deterministic per pilot user
@@ -224,10 +237,7 @@ class Command(BaseCommand):
             # A per-person RNG, so adding bios doesn't shift the shared random
             # sequence the connections and trips below are drawn from.
             own = random.Random(handle)
-            bio = own.choice(BIO_TEMPLATES).format(
-                a=interests[0], b=interests[1], city=label.split(",")[0]
-            )
-            bio = bio[0].upper() + bio[1:]
+            bio = self._unique_bio(own, interests, label.split(",")[0], bios_taken)
             travel_styles = sorted(own.sample(TRAVEL_STYLES, own.randint(1, 2)))
 
             profile, _ = Profile.objects.update_or_create(
@@ -255,6 +265,31 @@ class Command(BaseCommand):
             self._seed_saved_destinations(profile, rng)
 
         return profiles
+
+    @staticmethod
+    def _unique_bio(rng, interests, city, taken):
+        """A bio from this person's own interests and city that nobody else has.
+
+        Tries every template with every ordered pair of their interests (in a
+        per-person shuffled order) and keeps the first unused one, so bios stay
+        unique without depending on how the shared RNG happened to fall.
+        """
+        templates = BIO_TEMPLATES[:]
+        rng.shuffle(templates)
+        pairs = [(a, b) for a in interests for b in interests if a != b]
+        rng.shuffle(pairs)
+        for template in templates:
+            for a, b in pairs:
+                bio = template.format(a=a, b=b, city=city)
+                bio = bio[0].upper() + bio[1:]
+                if bio not in taken:
+                    taken.add(bio)
+                    return bio
+        # Unreachable with 3+ interests and 16 templates for 100 people, but
+        # never hand out a duplicate.
+        bio = f"{city} traveller into {', '.join(interests)}."
+        taken.add(bio)
+        return bio
 
     def _seed_saved_destinations(self, profile, rng):
         """A few saved destinations, so the shared-destination boost has data."""

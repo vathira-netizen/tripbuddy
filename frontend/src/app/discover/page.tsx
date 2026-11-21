@@ -24,7 +24,8 @@ import {
   unsaveDestination,
 } from "@/lib/discover";
 import { INTEREST_TAGS } from "@/lib/vocab";
-import { MultiSelectDropdown, Select } from "@/components/ui";
+import { Dropdown, MultiSelectDropdown } from "@/components/ui";
+import { distanceKm, type Origin, TravellingFrom } from "@/components/TravellingFrom";
 import WelcomeWalkthrough from "@/components/WelcomeWalkthrough";
 
 // Leaflet touches window on import, so the map is client-only.
@@ -41,6 +42,28 @@ const FALLBACK_IMG =
   );
 
 const BUDGET_MIN = 500;
+// Remembers the chosen starting point between visits (this browser only).
+const ORIGIN_KEY = "tb:discover-origin";
+
+function readStoredOrigin(): Origin | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(ORIGIN_KEY);
+    const o = raw ? (JSON.parse(raw) as Origin) : null;
+    return o && Number.isFinite(o.lat) && Number.isFinite(o.lng) ? o : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeOrigin(o: Origin | null) {
+  try {
+    if (o) window.localStorage.setItem(ORIGIN_KEY, JSON.stringify(o));
+    else window.localStorage.removeItem(ORIGIN_KEY);
+  } catch {
+    // Private mode / blocked storage: the URL still carries the choice.
+  }
+}
 const BUDGET_MAX = 5000;
 
 /** Lucide `heart`, inlined — two glyphs do not justify a dependency. */
@@ -61,6 +84,62 @@ export function Heart({ filled, className = "" }: { filled: boolean; className?:
   );
 }
 
+/**
+ * One track, two handles: the min and max daily budget. Two native range
+ * inputs share the track (see .dual-range in globals.css), so keyboard and
+ * screen-reader support come for free.
+ */
+function BudgetRange({
+  low,
+  high,
+  onLow,
+  onHigh,
+}: {
+  low: number;
+  high: number;
+  onLow: (v: number) => void;
+  onHigh: (v: number) => void;
+}) {
+  const pct = (v: number) => (v - BUDGET_MIN) / (BUDGET_MAX - BUDGET_MIN);
+  // The thumbs travel 9px in from each end (half their width); match that so
+  // the teal span starts and stops under the handles.
+  const at = (v: number) => `calc(9px + (100% - 18px) * ${pct(v)})`;
+  return (
+    <div className="relative h-[42px]">
+      <div className="absolute inset-x-[9px] top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-line" />
+      <div
+        className="absolute top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-brand-teal"
+        style={{ left: at(low), width: `calc((100% - 18px) * ${pct(high) - pct(low)})` }}
+      />
+      <input
+        type="range"
+        min={BUDGET_MIN}
+        max={BUDGET_MAX}
+        step={100}
+        value={low}
+        aria-label="Minimum daily budget"
+        aria-valuetext={formatINR(low)}
+        onChange={(e) => onLow(Number(e.target.value))}
+        // When both handles meet at the top end, the low one must sit on top
+        // or it could never be dragged back down.
+        style={{ zIndex: low > BUDGET_MAX - 500 ? 4 : 3 }}
+        className="dual-range"
+      />
+      <input
+        type="range"
+        min={BUDGET_MIN}
+        max={BUDGET_MAX}
+        step={100}
+        value={high}
+        aria-label="Maximum daily budget"
+        aria-valuetext={formatINR(high)}
+        onChange={(e) => onHigh(Number(e.target.value))}
+        className="dual-range z-[3]"
+      />
+    </div>
+  );
+}
+
 function DiscoverInner() {
   const router = useRouter();
   const params = useSearchParams();
@@ -70,7 +149,11 @@ function DiscoverInner() {
   const maxBudget = Number(params.get("max") ?? BUDGET_MAX);
   const region = params.get("region") ?? "";
   const state = params.get("state") ?? "";
-  const from = params.get("from") ?? ""; // start city; empty = profile area
+  // Starting point: ?from=<label>&flat=&flng= (or a known city name alone);
+  // empty falls back to the last one picked here, then the profile city.
+  const from = params.get("from") ?? "";
+  const fromLat = Number.parseFloat(params.get("flat") ?? "");
+  const fromLng = Number.parseFloat(params.get("flng") ?? "");
   const km = Number(params.get("km") ?? 500);
   const interests = useMemo(
     () => (params.get("interests")?.split(",").filter(Boolean) ?? []),
@@ -86,6 +169,37 @@ function DiscoverInner() {
   const [selected, setSelected] = useState<Destination | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileOrigin, setProfileOrigin] = useState<Origin | null>(null);
+  const [profileLoaded, setProfileLoaded] = useState(false);
+  const [storedOrigin, setStoredOrigin] = useState<Origin | null>(readStoredOrigin);
+
+  const origin = useMemo<Origin | null>(() => {
+    if (Number.isFinite(fromLat) && Number.isFinite(fromLng)) {
+      return { label: from || "Selected place", lat: fromLat, lng: fromLng };
+    }
+    const city = START_CITIES[from];
+    if (city) return { label: from, lat: city[0], lng: city[1] };
+    return storedOrigin ?? profileOrigin;
+  }, [from, fromLat, fromLng, storedOrigin, profileOrigin]);
+  const originLat = origin?.lat;
+  const originLng = origin?.lng;
+
+  // The profile city is the default starting point.
+  useEffect(() => {
+    api
+      .get<{ area: { lat: number; lng: number } | null; area_label: string }>("/api/profile/me/")
+      .then((me) => {
+        if (me.area) {
+          setProfileOrigin({
+            label: me.area_label.split(",")[0] || "My city",
+            lat: me.area.lat,
+            lng: me.area.lng,
+          });
+        }
+      })
+      .catch(() => {})
+      .finally(() => setProfileLoaded(true));
+  }, []);
 
   const setParam = useCallback(
     (updates: Record<string, string | null>) => {
@@ -117,17 +231,10 @@ function DiscoverInner() {
       setLoading(true);
       setError(null);
       if (sort === "proximity") {
-        const city = START_CITIES[from];
-        if (city) return { results: await nearbyDestinations(city[0], city[1], km), paged: false };
-        const me = await api.get<{ area: { lat: number; lng: number } | null }>(
-          "/api/profile/me/",
-        );
-        if (!me.area) {
-          throw new Error(
-            "Pick a starting city, or add your city in your profile.",
-          );
+        if (originLat === undefined || originLng === undefined) {
+          throw new Error("Set where you're travelling from to see what's nearby.");
         }
-        return { results: await nearbyDestinations(me.area.lat, me.area.lng, km), paged: false };
+        return { results: await nearbyDestinations(originLat, originLng, km), paged: false };
       }
       const pageData = await listDestinationsPage({
         minBudget,
@@ -137,9 +244,20 @@ function DiscoverInner() {
         interests,
         ordering: "avg_daily_budget",
         page,
+        // Don't suggest the place you're starting from.
+        excludeNear:
+          originLat !== undefined && originLng !== undefined ? [originLat, originLng] : undefined,
       });
       return { results: pageData.results, count: pageData.count, paged: true };
     };
+
+    // Nearby needs a starting point; wait for the profile city before
+    // concluding there isn't one.
+    if (sort === "proximity" && originLat === undefined && !profileLoaded) {
+      return () => {
+        cancelled = true;
+      };
+    }
 
     run()
       .then((res) => {
@@ -175,7 +293,17 @@ function DiscoverInner() {
     return () => {
       cancelled = true;
     };
-  }, [minBudget, maxBudget, region, state, interests, sort, from, km, page]);
+  }, [minBudget, maxBudget, region, state, interests, sort, originLat, originLng, profileLoaded, km, page]);
+
+  function changeOrigin(next: Origin | null) {
+    storeOrigin(next);
+    setStoredOrigin(next);
+    setParam(
+      next
+        ? { from: next.label, flat: String(next.lat), flng: String(next.lng) }
+        : { from: null, flat: null, flng: null },
+    );
+  }
 
   async function toggleSave(d: Destination) {
     const existing = savedByDest[d.id];
@@ -230,74 +358,90 @@ function DiscoverInner() {
         </Link>
       </div>
 
-      {/* Filter bar — one surface card across the top (ref 6a). */}
-      <div className="mb-5 rounded-[18px] border border-line bg-surface p-4">
-        <div className="flex flex-wrap items-start gap-x-6 gap-y-4">
-          <fieldset className="min-w-[190px]">
-            <legend className="text-xs text-text-subtle">Budget</legend>
-            <p className="text-sm text-text-muted">
-              <span className="font-bold tabular-nums text-brand-teal">
-                {formatINR(minBudget)}–{formatINR(maxBudget)}
+      {/* Filter card: where you're starting from and how results are ordered
+          on top, then one even row of filters. Every control is the same
+          height so the rows line up. */}
+      <div className="mb-5 rounded-[18px] border border-line bg-surface">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line p-4">
+          <TravellingFrom origin={origin} profileOrigin={profileOrigin} onChange={changeOrigin} />
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span id="sort-label" className="text-xs text-text-subtle">
+              Sort by
+            </span>
+            <div
+              role="radiogroup"
+              aria-labelledby="sort-label"
+              className="inline-flex h-[42px] rounded-full bg-[#efece4] p-1"
+            >
+              {(["budget", "proximity"] as const).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  role="radio"
+                  aria-checked={sort === option}
+                  onClick={() => setParam({ sort: option })}
+                  className={`rounded-full px-4 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-brand-coral/40 ${
+                    sort === option
+                      ? "bg-white font-bold text-brand-teal shadow-sm"
+                      : "text-text-subtle hover:text-brand-teal"
+                  }`}
+                >
+                  {option === "budget" ? "Lowest budget" : "Nearest"}
+                </button>
+              ))}
+            </div>
+            {sort === "proximity" && (
+              <Dropdown
+                hideLabel
+                align="right"
+                className="w-[170px]"
+                label="Within"
+                value={String(km)}
+                onChange={(v) => setParam({ km: v })}
+                options={DISTANCE_LIMITS.map((d) => ({ value: String(d), label: `Within ${d} km` }))}
+              />
+            )}
+          </div>
+        </div>
+
+        <div className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="space-y-1">
+            <div className="flex items-baseline justify-between gap-2 text-xs">
+              <span id="budget-label" className="text-text-subtle">
+                Budget per day
               </span>
-              /day
-            </p>
-            <input
-              type="range"
-              min={BUDGET_MIN}
-              max={BUDGET_MAX}
-              step={100}
-              value={minBudget}
-              aria-label="Minimum daily budget"
-              onChange={(e) =>
-                setParam({ min: String(Math.min(Number(e.target.value), maxBudget)) })
-              }
-              className="mt-1.5 w-full accent-brand-teal"
+              <span className="font-bold tabular-nums text-brand-teal">
+                {formatINR(minBudget)} – {formatINR(maxBudget)}
+              </span>
+            </div>
+            <BudgetRange
+              low={minBudget}
+              high={maxBudget}
+              onLow={(v) => setParam({ min: String(Math.min(v, maxBudget)) })}
+              onHigh={(v) => setParam({ max: String(Math.max(v, minBudget)) })}
             />
-            <input
-              type="range"
-              min={BUDGET_MIN}
-              max={BUDGET_MAX}
-              step={100}
-              value={maxBudget}
-              aria-label="Maximum daily budget"
-              onChange={(e) =>
-                setParam({ max: String(Math.max(Number(e.target.value), minBudget)) })
-              }
-              className="w-full accent-brand-teal"
-            />
-          </fieldset>
-
-          <div className="hidden h-10 w-px self-center bg-line sm:block" />
-
-          <div className="min-w-[150px]">
-            <Select
-              label="Region"
-              value={region}
-              onChange={(e) => setParam({ region: e.target.value })}
-            >
-              <option value="">All regions</option>
-              {REGIONS.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </Select>
           </div>
 
-          <div className="min-w-[150px]">
-            <Select
-              label="State"
-              value={state}
-              onChange={(e) => setParam({ state: e.target.value })}
-            >
-              <option value="">All states</option>
-              {STATES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </Select>
-          </div>
+          <Dropdown
+            label="Region"
+            value={region}
+            onChange={(v) => setParam({ region: v })}
+            options={[
+              { value: "", label: "All regions" },
+              ...REGIONS.map((r) => ({ value: r, label: r })),
+            ]}
+          />
+
+          <Dropdown
+            label="State"
+            value={state}
+            onChange={(v) => setParam({ state: v })}
+            options={[
+              { value: "", label: "All states" },
+              ...STATES.map((s) => ({ value: s, label: s })),
+            ]}
+          />
 
           <MultiSelectDropdown
             label="Interests"
@@ -310,66 +454,8 @@ function DiscoverInner() {
               setParam({ interests: next.join(",") });
             }}
             onClear={() => setParam({ interests: null })}
+            emptyLabel="Any interest"
           />
-
-          {sort === "proximity" && (
-            <>
-              <div className="min-w-[150px]">
-                <Select
-                  label="Starting city"
-                  value={from}
-                  onChange={(e) => setParam({ from: e.target.value })}
-                >
-                  <option value="">My profile area</option>
-                  {Object.keys(START_CITIES).map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <div className="min-w-[130px]">
-                <Select
-                  label="Within"
-                  value={String(km)}
-                  onChange={(e) => setParam({ km: e.target.value })}
-                >
-                  {DISTANCE_LIMITS.map((d) => (
-                    <option key={d} value={d}>
-                      {d} km
-                    </option>
-                  ))}
-                </Select>
-              </div>
-            </>
-          )}
-
-          {/* Segmented control: the active option is a white pill on a warm track. */}
-          <fieldset className="ml-auto">
-            <legend className="text-xs text-text-subtle">Sort by</legend>
-            <div
-              role="radiogroup"
-              aria-label="Sort by"
-              className="mt-1 inline-flex rounded-full bg-[#efece4] p-0.5"
-            >
-              {(["budget", "proximity"] as const).map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  role="radio"
-                  aria-checked={sort === option}
-                  onClick={() => setParam({ sort: option })}
-                  className={`rounded-full px-4 py-1.5 text-sm transition ${
-                    sort === option
-                      ? "bg-white font-bold text-brand-teal shadow-sm"
-                      : "text-text-subtle hover:text-brand-teal"
-                  }`}
-                >
-                  {option === "budget" ? "Budget" : "Nearby"}
-                </button>
-              ))}
-            </div>
-          </fieldset>
         </div>
       </div>
 
@@ -502,7 +588,9 @@ function DiscoverInner() {
                 </div>
                 <p className="mb-2.5 mt-1 text-xs text-text-subtle">
                   {d.region}
-                  {d.distance_km != null && ` · ${d.distance_km} km away`}
+                  {origin
+                    ? ` · ${distanceKm(origin, d).toLocaleString("en-IN")} km away`
+                    : d.distance_km != null && ` · ${d.distance_km} km away`}
                   {d.best_season && ` · Best ${d.best_season}`}
                 </p>
                 <div className="flex flex-wrap items-center gap-1.5">

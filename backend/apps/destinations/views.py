@@ -27,13 +27,19 @@ from apps.destinations.serializers import (
 )
 
 MAX_RADIUS_KM = 2000
+# ?exclude_near= drops destinations this close to the traveller's starting
+# point: travelling from Bengaluru shouldn't suggest Bengaluru. Wide enough to
+# cover a big city's own entry, narrow enough to keep day trips (Nandi Hills
+# is ~60 km out).
+HOME_RADIUS_KM = 40
 
 
 class DestinationViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     """Read-only catalogue. Public data, so any authenticated user may read it.
 
-    List supports ?min_budget=&max_budget=&region=&state=&interests=a,b (all optional)
-    and ?ordering=avg_daily_budget (or -avg_daily_budget, name).
+    List supports ?min_budget=&max_budget=&region=&state=&interests=a,b and
+    ?exclude_near=lat,lng (all optional) and ?ordering=avg_daily_budget (or
+    -avg_daily_budget, name). The nearby action takes the same filters.
     """
 
     serializer_class = DestinationSerializer
@@ -66,6 +72,15 @@ class DestinationViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, views
             if tags:
                 # overlap: destination matches if it has any requested tag.
                 qs = qs.filter(interest_tags__overlap=tags)
+
+        exclude_near = params.get("exclude_near")
+        if exclude_near:
+            try:
+                lat, lng = (float(v) for v in exclude_near.split(","))
+            except ValueError:
+                raise ValidationError({"exclude_near": "Use lat,lng."})
+            home = Point(lng, lat, srid=4326)
+            qs = qs.exclude(point__dwithin=(home, D(km=HOME_RADIUS_KM)))
 
         return qs
 
