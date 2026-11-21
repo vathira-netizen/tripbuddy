@@ -24,7 +24,8 @@ import {
   unsaveDestination,
 } from "@/lib/discover";
 import { INTEREST_TAGS } from "@/lib/vocab";
-import { MultiSelectDropdown, Select } from "@/components/ui";
+import { Dropdown, MultiSelectDropdown } from "@/components/ui";
+import { distanceKm, type Origin, TravellingFrom } from "@/components/TravellingFrom";
 import WelcomeWalkthrough from "@/components/WelcomeWalkthrough";
 
 // Leaflet touches window on import, so the map is client-only.
@@ -41,6 +42,28 @@ const FALLBACK_IMG =
   );
 
 const BUDGET_MIN = 500;
+// Remembers the chosen starting point between visits (this browser only).
+const ORIGIN_KEY = "tb:discover-origin";
+
+function readStoredOrigin(): Origin | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(ORIGIN_KEY);
+    const o = raw ? (JSON.parse(raw) as Origin) : null;
+    return o && Number.isFinite(o.lat) && Number.isFinite(o.lng) ? o : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeOrigin(o: Origin | null) {
+  try {
+    if (o) window.localStorage.setItem(ORIGIN_KEY, JSON.stringify(o));
+    else window.localStorage.removeItem(ORIGIN_KEY);
+  } catch {
+    // Private mode / blocked storage: the URL still carries the choice.
+  }
+}
 const BUDGET_MAX = 5000;
 
 /** Lucide `heart`, inlined — two glyphs do not justify a dependency. */
@@ -70,7 +93,11 @@ function DiscoverInner() {
   const maxBudget = Number(params.get("max") ?? BUDGET_MAX);
   const region = params.get("region") ?? "";
   const state = params.get("state") ?? "";
-  const from = params.get("from") ?? ""; // start city; empty = profile area
+  // Starting point: ?from=<label>&flat=&flng= (or a known city name alone);
+  // empty falls back to the last one picked here, then the profile city.
+  const from = params.get("from") ?? "";
+  const fromLat = Number.parseFloat(params.get("flat") ?? "");
+  const fromLng = Number.parseFloat(params.get("flng") ?? "");
   const km = Number(params.get("km") ?? 500);
   const interests = useMemo(
     () => (params.get("interests")?.split(",").filter(Boolean) ?? []),
@@ -86,6 +113,37 @@ function DiscoverInner() {
   const [selected, setSelected] = useState<Destination | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileOrigin, setProfileOrigin] = useState<Origin | null>(null);
+  const [profileLoaded, setProfileLoaded] = useState(false);
+  const [storedOrigin, setStoredOrigin] = useState<Origin | null>(readStoredOrigin);
+
+  const origin = useMemo<Origin | null>(() => {
+    if (Number.isFinite(fromLat) && Number.isFinite(fromLng)) {
+      return { label: from || "Selected place", lat: fromLat, lng: fromLng };
+    }
+    const city = START_CITIES[from];
+    if (city) return { label: from, lat: city[0], lng: city[1] };
+    return storedOrigin ?? profileOrigin;
+  }, [from, fromLat, fromLng, storedOrigin, profileOrigin]);
+  const originLat = origin?.lat;
+  const originLng = origin?.lng;
+
+  // The profile city is the default starting point.
+  useEffect(() => {
+    api
+      .get<{ area: { lat: number; lng: number } | null; area_label: string }>("/api/profile/me/")
+      .then((me) => {
+        if (me.area) {
+          setProfileOrigin({
+            label: me.area_label.split(",")[0] || "My city",
+            lat: me.area.lat,
+            lng: me.area.lng,
+          });
+        }
+      })
+      .catch(() => {})
+      .finally(() => setProfileLoaded(true));
+  }, []);
 
   const setParam = useCallback(
     (updates: Record<string, string | null>) => {
@@ -117,17 +175,10 @@ function DiscoverInner() {
       setLoading(true);
       setError(null);
       if (sort === "proximity") {
-        const city = START_CITIES[from];
-        if (city) return { results: await nearbyDestinations(city[0], city[1], km), paged: false };
-        const me = await api.get<{ area: { lat: number; lng: number } | null }>(
-          "/api/profile/me/",
-        );
-        if (!me.area) {
-          throw new Error(
-            "Pick a starting city, or add your city in your profile.",
-          );
+        if (originLat === undefined || originLng === undefined) {
+          throw new Error("Set where you're travelling from to see what's nearby.");
         }
-        return { results: await nearbyDestinations(me.area.lat, me.area.lng, km), paged: false };
+        return { results: await nearbyDestinations(originLat, originLng, km), paged: false };
       }
       const pageData = await listDestinationsPage({
         minBudget,
@@ -140,6 +191,14 @@ function DiscoverInner() {
       });
       return { results: pageData.results, count: pageData.count, paged: true };
     };
+
+    // Nearby needs a starting point; wait for the profile city before
+    // concluding there isn't one.
+    if (sort === "proximity" && originLat === undefined && !profileLoaded) {
+      return () => {
+        cancelled = true;
+      };
+    }
 
     run()
       .then((res) => {
@@ -175,7 +234,17 @@ function DiscoverInner() {
     return () => {
       cancelled = true;
     };
-  }, [minBudget, maxBudget, region, state, interests, sort, from, km, page]);
+  }, [minBudget, maxBudget, region, state, interests, sort, originLat, originLng, profileLoaded, km, page]);
+
+  function changeOrigin(next: Origin | null) {
+    storeOrigin(next);
+    setStoredOrigin(next);
+    setParam(
+      next
+        ? { from: next.label, flat: String(next.lat), flng: String(next.lng) }
+        : { from: null, flat: null, flng: null },
+    );
+  }
 
   async function toggleSave(d: Destination) {
     const existing = savedByDest[d.id];
@@ -230,6 +299,19 @@ function DiscoverInner() {
         </Link>
       </div>
 
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <TravellingFrom origin={origin} profileOrigin={profileOrigin} onChange={changeOrigin} />
+        {origin && sort !== "proximity" && (
+          <button
+            type="button"
+            onClick={() => setParam({ sort: "proximity" })}
+            className="text-sm font-semibold text-brand-teal underline-offset-4 hover:text-brand-coral-ink hover:underline"
+          >
+            Show nearest first
+          </button>
+        )}
+      </div>
+
       {/* Filter bar — one surface card across the top (ref 6a). */}
       <div className="mb-5 rounded-[18px] border border-line bg-surface p-4">
         <div className="flex flex-wrap items-start gap-x-6 gap-y-4">
@@ -269,35 +351,27 @@ function DiscoverInner() {
 
           <div className="hidden h-10 w-px self-center bg-line sm:block" />
 
-          <div className="min-w-[150px]">
-            <Select
-              label="Region"
-              value={region}
-              onChange={(e) => setParam({ region: e.target.value })}
-            >
-              <option value="">All regions</option>
-              {REGIONS.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </Select>
-          </div>
+          <Dropdown
+            className="min-w-[160px]"
+            label="Region"
+            value={region}
+            onChange={(v) => setParam({ region: v })}
+            options={[
+              { value: "", label: "All regions" },
+              ...REGIONS.map((r) => ({ value: r, label: r })),
+            ]}
+          />
 
-          <div className="min-w-[150px]">
-            <Select
-              label="State"
-              value={state}
-              onChange={(e) => setParam({ state: e.target.value })}
-            >
-              <option value="">All states</option>
-              {STATES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </Select>
-          </div>
+          <Dropdown
+            className="min-w-[180px]"
+            label="State"
+            value={state}
+            onChange={(v) => setParam({ state: v })}
+            options={[
+              { value: "", label: "All states" },
+              ...STATES.map((s) => ({ value: s, label: s })),
+            ]}
+          />
 
           <MultiSelectDropdown
             label="Interests"
@@ -310,38 +384,17 @@ function DiscoverInner() {
               setParam({ interests: next.join(",") });
             }}
             onClear={() => setParam({ interests: null })}
+            emptyLabel="Any interest"
           />
 
           {sort === "proximity" && (
-            <>
-              <div className="min-w-[150px]">
-                <Select
-                  label="Starting city"
-                  value={from}
-                  onChange={(e) => setParam({ from: e.target.value })}
-                >
-                  <option value="">My profile area</option>
-                  {Object.keys(START_CITIES).map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <div className="min-w-[130px]">
-                <Select
-                  label="Within"
-                  value={String(km)}
-                  onChange={(e) => setParam({ km: e.target.value })}
-                >
-                  {DISTANCE_LIMITS.map((d) => (
-                    <option key={d} value={d}>
-                      {d} km
-                    </option>
-                  ))}
-                </Select>
-              </div>
-            </>
+            <Dropdown
+              className="min-w-[130px]"
+              label="Within"
+              value={String(km)}
+              onChange={(v) => setParam({ km: v })}
+              options={DISTANCE_LIMITS.map((d) => ({ value: String(d), label: `${d} km` }))}
+            />
           )}
 
           {/* Segmented control: the active option is a white pill on a warm track. */}
@@ -502,7 +555,9 @@ function DiscoverInner() {
                 </div>
                 <p className="mb-2.5 mt-1 text-xs text-text-subtle">
                   {d.region}
-                  {d.distance_km != null && ` · ${d.distance_km} km away`}
+                  {origin
+                    ? ` · ${distanceKm(origin, d).toLocaleString("en-IN")} km away`
+                    : d.distance_km != null && ` · ${d.distance_km} km away`}
                   {d.best_season && ` · Best ${d.best_season}`}
                 </p>
                 <div className="flex flex-wrap items-center gap-1.5">

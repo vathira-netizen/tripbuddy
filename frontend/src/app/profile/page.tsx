@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
 import { api, ApiError } from "@/lib/api";
@@ -10,7 +10,7 @@ import { TRAVEL_STYLES } from "@/lib/vocab";
 import { Button, FormError, FormSuccess, Input, TagPicker } from "@/components/ui";
 import AvatarUpload from "@/components/AvatarUpload";
 import ProfileCompletenessMeter from "@/components/ProfileCompletenessMeter";
-import { SignOutButton } from "@/components/SignOutButton";
+import ProfileView from "@/components/ProfileView";
 import {
   applyFieldUpdate,
   IdentityFields,
@@ -22,7 +22,17 @@ import {
 const BIO_MAX = 280;
 
 export default function ProfilePage() {
+  return (
+    <Suspense fallback={<p className="p-6 text-sm text-text-subtle">Loading…</p>}>
+      <ProfileInner />
+    </Suspense>
+  );
+}
+
+/** View mode by default; `?edit=1` is the edit form (so Back returns to the view). */
+function ProfileInner() {
   const router = useRouter();
+  const editing = useSearchParams().get("edit") === "1";
   const [profile, setProfile] = useState<Profile | null>(null);
   const [values, setValues] = useState<ProfileFieldValues | null>(null);
   const [bio, setBio] = useState("");
@@ -104,7 +114,8 @@ export default function ProfilePage() {
       setProfile(updated);
       setCity("");
       setSaved(true);
-      toast.success("Profile saved successfully");
+      toast.success("Profile saved");
+      router.push("/profile");
     } catch (err) {
       if (err instanceof ApiError) {
         const data = err.data as Record<string, string[]> | undefined;
@@ -140,27 +151,37 @@ export default function ProfilePage() {
     );
   }
 
-  return (
-    <main className="mx-auto w-full max-w-lg px-4 py-10">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl tracking-tight">Your profile</h1>
-        <SignOutButton />
-      </div>
-      <p className="mt-1 text-sm text-text-subtle">
-        {profile.email}
-        {profile.area_label ? ` · ${profile.area_label}` : ""}
-      </p>
+  if (!editing) {
+    return <ProfileView profile={profile} onEdit={() => router.push("/profile?edit=1")} />;
+  }
 
-      <div className="mt-5">
+  return (
+    <main className="mx-auto w-full max-w-5xl px-4 py-8">
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => router.push("/profile")}
+          aria-label="Back to your profile"
+          className="grid h-9 w-9 place-items-center rounded-full border border-line-input bg-white text-brand-teal transition hover:border-brand-teal"
+        >
+          ←
+        </button>
+        <div>
+          <h1 className="font-serif text-3xl leading-none tracking-tight text-brand-teal">
+            Edit profile
+          </h1>
+          <p className="mt-1 text-sm text-text-subtle">{profile.email}</p>
+        </div>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[18rem_minmax(0,1fr)]">
+      <aside className="h-fit space-y-5 rounded-[20px] border border-line bg-surface p-5 lg:sticky lg:top-24">
         <AvatarUpload
           supabaseUserId={profile.supabase_user_id}
           displayName={values.display_name}
           avatarUrl={profile.avatar_url}
           onUploaded={(avatar_url) => setProfile((p) => (p ? { ...p, avatar_url } : p))}
         />
-      </div>
-
-      <div className="mt-5">
         <ProfileCompletenessMeter
           values={{
             avatar_url: profile.avatar_url,
@@ -172,9 +193,13 @@ export default function ProfilePage() {
             upi_vpa: upiVpa,
           }}
         />
-      </div>
+      </aside>
 
-      <form onSubmit={onSubmit} className="mt-6 space-y-5" noValidate>
+      <form
+        onSubmit={onSubmit}
+        className="space-y-5 rounded-[20px] border border-line bg-surface p-5 sm:p-6"
+        noValidate
+      >
         <FormError message={formError} />
         <FormSuccess message={saved ? "Profile saved." : null} />
         <IdentityFields values={values} errors={errors} set={set} />
@@ -245,10 +270,20 @@ export default function ProfilePage() {
           </p>
         </div>
 
-        <Button variant="coral" type="submit" loading={saving}>
-          Save changes
-        </Button>
+        <div className="flex gap-3 border-t border-line pt-5">
+          <button
+            type="button"
+            onClick={() => router.push("/profile")}
+            className="rounded-full border border-line-input px-6 py-2.5 text-sm font-semibold text-text-muted transition hover:border-brand-teal hover:text-brand-teal"
+          >
+            Cancel
+          </button>
+          <Button variant="coral" type="submit" loading={saving} className="flex-1">
+            Save changes
+          </Button>
+        </div>
       </form>
+      </div>
     </main>
   );
 }

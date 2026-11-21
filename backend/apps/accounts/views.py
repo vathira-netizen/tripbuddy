@@ -1,7 +1,10 @@
+from drf_spectacular.utils import OpenApiParameter, OpenApiTypes, extend_schema
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import UserRateThrottle
+from rest_framework.views import APIView
 
 from apps.accounts.geocoding import GeocodingError, geocode_city
 from apps.accounts.models import Profile
@@ -101,3 +104,41 @@ class PublicProfileViewSet(viewsets.ReadOnlyModelViewSet):
         if not is_authenticated(self.request.user):
             return Profile.objects.none()
         return Profile.objects.filter(onboarded=True).exclude(user=self.request.user)
+
+
+class GeocodeThrottle(UserRateThrottle):
+    # Nominatim's usage policy is ~1 request/second for the whole app; the
+    # UI only calls this on submit, so a per-user cap just stops abuse.
+    rate = "20/min"
+
+
+class GeocodeView(APIView):
+    """``GET /api/geocode/?q=Kochi`` — a typed place, resolved to a rough point.
+
+    Backs Discover's "Travelling from" box. Nothing is stored: the point is
+    used only to measure distances, and is rounded to ~1 km like profile areas.
+    """
+
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [GeocodeThrottle]
+
+    @extend_schema(
+        summary="Look up a city or town",
+        parameters=[OpenApiParameter("q", str, required=True)],
+        responses=OpenApiTypes.OBJECT,
+    )
+    def get(self, request):
+        query = (request.query_params.get("q") or "").strip()[:120]
+        if not query:
+            return Response({"detail": "Type a city or town."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            point, label = geocode_city(query)
+        except GeocodingError:
+            return Response(
+                {"detail": f"Couldn't find \"{query}\". Try a nearby city."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        # "Kochi, Ernakulam, Kerala, India" -> "Kochi, Kerala": place + state.
+        parts = [p.strip() for p in label.split(",") if p.strip()]
+        short = ", ".join(parts[:1] + parts[-2:-1]) if len(parts) > 2 else ", ".join(parts)
+        return Response({"label": short or query, "lat": point.y, "lng": point.x})
