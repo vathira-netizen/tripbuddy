@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { blockTraveller, initials, monogramAccent, type Connection } from "@/lib/buddies";
 import {
+  clearConversation,
   listMessages,
   markConversationRead,
   sendMessage,
@@ -23,6 +24,7 @@ export function MessageThread({ connection }: { connection: Connection }) {
       list: () => listMessages(connection.id).then((p) => p.results),
       send: (body) => sendMessage(connection.id, body),
       markRead: () => markConversationRead(connection.id),
+      clear: () => clearConversation(connection.id),
       subscribe: (onInsert, onStatus) =>
         subscribeToMessages(connection.id, onInsert, onStatus),
     }),

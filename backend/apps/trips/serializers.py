@@ -1,4 +1,5 @@
 from django.db.models import Q
+from django.utils import timezone
 from rest_framework import serializers
 
 from apps.accounts.models import Profile
@@ -82,6 +83,7 @@ class TripSerializer(serializers.ModelSerializer):
             "share_token",
             "cover_image_url",
             "is_open_to_join",
+            "join_deadline",
             "collaborators",
             "is_owner",
             "created_at",
@@ -102,6 +104,7 @@ class TripSerializer(serializers.ModelSerializer):
             "is_public",
             "share_token",
             "is_open_to_join",
+            "join_deadline",
             "collaborators",
             "is_owner",
             "created_at",
@@ -122,6 +125,31 @@ class ReorderSerializer(serializers.Serializer):
     """Body of POST /api/trips/{id}/reorder/ — the new (day_index, position)."""
 
     items = ReorderItemSerializer(many=True)
+
+
+class OpenToJoinSerializer(serializers.Serializer):
+    """Body of POST /api/trips/{id}/open-to-join/ — an optional join deadline."""
+
+    join_deadline = serializers.DateField(required=False, allow_null=True)
+
+    def validate(self, attrs):
+        trip = self.context["trip"]
+        today = timezone.localdate()
+        if trip.start_date and trip.start_date < today:
+            raise serializers.ValidationError(
+                "This trip has already started, so it can't take join requests."
+            )
+        deadline = attrs.get("join_deadline")
+        if deadline:
+            if deadline < today:
+                raise serializers.ValidationError(
+                    {"join_deadline": "The deadline can't be in the past."}
+                )
+            if trip.start_date and deadline > trip.start_date:
+                raise serializers.ValidationError(
+                    {"join_deadline": "The deadline must be on or before the start date."}
+                )
+        return attrs
 
 
 class InviteSerializer(serializers.Serializer):
@@ -168,6 +196,10 @@ class OpenTripSerializer(serializers.ModelSerializer):
     destination_slug = serializers.CharField(
         source="destination.slug", read_only=True, default=""
     )
+    # The effective deadline (falls back to the start date); null = no limit.
+    join_deadline = serializers.DateField(
+        source="effective_join_deadline", read_only=True, allow_null=True
+    )
 
     class Meta:
         model = Trip
@@ -179,6 +211,7 @@ class OpenTripSerializer(serializers.ModelSerializer):
             "start_date",
             "end_date",
             "nights",
+            "join_deadline",
             "owner_name",
             "owner_avatar_url",
             "collaborator_count",

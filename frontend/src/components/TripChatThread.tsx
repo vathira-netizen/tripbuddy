@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import {
+  clearTripChat,
   listTripMessages,
   markTripChatRead,
   MAX_BODY_LENGTH,
@@ -29,6 +30,7 @@ export function TripChatThread({
       list: () => listTripMessages(tripId).then((p) => p.results),
       send: (body) => sendTripMessage(tripId, body),
       markRead: () => markTripChatRead(tripId),
+      clear: () => clearTripChat(tripId),
     }),
     [tripId],
   );

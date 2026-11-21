@@ -78,3 +78,56 @@ class TripChatRead(models.Model):
 
     class Meta:
         unique_together = [("trip", "user")]
+
+
+class ChatClear(models.Model):
+    """When a user last cleared a chat — "Clear chat" hides history for them only.
+
+    Messages are shared rows, so clearing never deletes anything: the other
+    side keeps their copy, and history views filter out messages at or before
+    ``cleared_at``. Exactly one of ``connection`` (a DM) or ``trip`` (a group
+    chat) is set.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="chat_clears"
+    )
+    connection = models.ForeignKey(
+        "connections.Connection", on_delete=models.CASCADE, null=True, blank=True,
+        related_name="clears",
+    )
+    trip = models.ForeignKey(
+        "trips.Trip", on_delete=models.CASCADE, null=True, blank=True,
+        related_name="chat_clears",
+    )
+    cleared_at = models.DateTimeField()
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(connection__isnull=False, trip__isnull=True)
+                    | models.Q(connection__isnull=True, trip__isnull=False)
+                ),
+                name="chatclear_one_target",
+            ),
+            models.UniqueConstraint(
+                fields=["user", "connection"],
+                condition=models.Q(connection__isnull=False),
+                name="chatclear_unique_connection",
+            ),
+            models.UniqueConstraint(
+                fields=["user", "trip"],
+                condition=models.Q(trip__isnull=False),
+                name="chatclear_unique_trip",
+            ),
+        ]
+
+
+def cleared_at(user, *, connection=None, trip=None):
+    """The user's clear timestamp for a chat, or None if never cleared."""
+    return (
+        ChatClear.objects.filter(user=user, connection=connection, trip=trip)
+        .values_list("cleared_at", flat=True)
+        .first()
+    )
