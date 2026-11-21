@@ -23,7 +23,13 @@ from rest_framework.views import APIView
 
 from apps.common.querysets import is_authenticated, visible_trips
 from apps.connections.models import Connection
-from apps.messaging.models import Message, TripChatRead, TripMessage
+from apps.messaging.models import (
+    ChatClear,
+    Message,
+    TripChatRead,
+    TripMessage,
+    cleared_at,
+)
 from apps.trips.models import TripJoinRequest
 from apps.messaging.serializers import (
     MessageSerializer,
@@ -104,12 +110,12 @@ class ConnectionMessagesView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         connection = self.get_connection()
+        qs = Message.objects.filter(connection=connection)
+        since = cleared_at(self.request.user, connection=connection)
+        if since:
+            qs = qs.filter(created_at__gt=since)
         # Newest first for slicing; MessagePagination flips each page back.
-        return (
-            Message.objects.filter(connection=connection)
-            .select_related("sender__profile")
-            .order_by("-created_at", "-id")
-        )
+        return qs.select_related("sender__profile").order_by("-created_at", "-id")
 
     @extend_schema(
         summary="Conversation history",
@@ -158,6 +164,29 @@ class MarkConversationReadView(APIView):
             .update(read_at=timezone.now())
         )
         return Response({"marked_read": marked}, status=status.HTTP_200_OK)
+
+
+class ClearConversationView(APIView):
+    """``POST /api/connections/{id}/messages/clear/`` — clear the chat for you.
+
+    Hides everything sent so far from *your* history only (the other traveller
+    keeps theirs) and marks it read, so no badge is left pointing at it.
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(summary="Clear a conversation (for you only)", request=None,
+                   responses=OpenApiTypes.OBJECT)
+    def post(self, request, pk):
+        connection = get_accepted_connection(request.user, pk)
+        now = timezone.now()
+        ChatClear.objects.update_or_create(
+            user=request.user, connection=connection, defaults={"cleared_at": now}
+        )
+        Message.objects.filter(connection=connection, read_at__isnull=True).exclude(
+            sender=request.user
+        ).update(read_at=now)
+        return Response({"cleared_at": now})
 
 
 class UnreadSummaryView(APIView):
@@ -341,11 +370,11 @@ class TripMessagesView(generics.ListCreateAPIView):
         return self._trip
 
     def get_queryset(self):
-        return (
-            TripMessage.objects.filter(trip=self.get_trip())
-            .select_related("sender__profile")
-            .order_by("-created_at", "-id")
-        )
+        qs = TripMessage.objects.filter(trip=self.get_trip())
+        since = cleared_at(self.request.user, trip=self.get_trip())
+        if since:
+            qs = qs.filter(created_at__gt=since)
+        return qs.select_related("sender__profile").order_by("-created_at", "-id")
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -375,6 +404,25 @@ class TripChatReadView(APIView):
         return Response({"ok": True})
 
 
+class TripChatClearView(APIView):
+    """``POST /api/trips/{id}/messages/clear/`` — clear the group chat for you."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(summary="Clear a trip group chat (for you only)", request=None,
+                   responses=OpenApiTypes.OBJECT)
+    def post(self, request, pk):
+        trip = get_member_trip(request.user, pk)
+        now = timezone.now()
+        ChatClear.objects.update_or_create(
+            user=request.user, trip=trip, defaults={"cleared_at": now}
+        )
+        TripChatRead.objects.update_or_create(
+            trip=trip, user=request.user, defaults={"last_read_at": now}
+        )
+        return Response({"cleared_at": now})
+
+
 class TripChatListView(APIView):
     """``GET /api/trip-chats/`` — the user's trip groups for the Messages page."""
 
@@ -397,7 +445,14 @@ class TripChatListView(APIView):
             .order_by("trip_id", "-created_at", "-id")
             .distinct("trip_id")
         )
+        cleared = dict(
+            ChatClear.objects.filter(user=user, trip__in=trips).values_list(
+                "trip_id", "cleared_at"
+            )
+        )
         for m in newest_per_trip:
+            if m.trip_id in cleared and m.created_at <= cleared[m.trip_id]:
+                continue  # cleared: don't preview a message the thread hides
             last[m.trip_id] = {
                 "body": m.body,
                 "sender_name": m.sender.profile.display_name,

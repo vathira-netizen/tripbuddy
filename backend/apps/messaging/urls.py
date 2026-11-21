@@ -1,8 +1,10 @@
 from django.urls import path
 
 from apps.messaging.views import (
+    ClearConversationView,
     ConnectionMessagesView,
     MarkConversationReadView,
+    TripChatClearView,
     TripChatListView,
     TripChatReadView,
     TripMessagesView,
@@ -19,6 +21,16 @@ urlpatterns = [
         "connections/<int:pk>/messages/read/",
         MarkConversationReadView.as_view(),
         name="connection-messages-read",
+    ),
+    path(
+        "connections/<int:pk>/messages/clear/",
+        ClearConversationView.as_view(),
+        name="connection-messages-clear",
+    ),
+    path(
+        "trips/<int:pk>/messages/clear/",
+        TripChatClearView.as_view(),
+        name="trip-messages-clear",
     ),
     path("trips/<int:pk>/messages/", TripMessagesView.as_view(), name="trip-messages"),
     path(

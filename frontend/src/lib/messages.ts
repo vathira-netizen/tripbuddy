@@ -93,6 +93,13 @@ export const markConversationRead = (connectionId: number) =>
     {},
   );
 
+/** "Clear chat": hides history for you only; the other side keeps theirs. */
+export const clearConversation = (connectionId: number) =>
+  api.post<{ cleared_at: string }>(
+    `/api/connections/${connectionId}/messages/clear/`,
+    {},
+  );
+
 // --- Trip group chat (API-only; the open thread polls, see ChatPanel) -------
 
 export const listTripMessages = (tripId: number) =>
@@ -103,6 +110,10 @@ export const sendTripMessage = (tripId: number, body: string) =>
 
 export const markTripChatRead = (tripId: number) =>
   api.post<{ ok: boolean }>(`/api/trips/${tripId}/messages/read/`, {});
+
+/** Clear a group chat for you only; other members keep their history. */
+export const clearTripChat = (tripId: number) =>
+  api.post<{ cleared_at: string }>(`/api/trips/${tripId}/messages/clear/`, {});
 
 export const listTripChats = () => api.get<TripChat[]>("/api/trip-chats/");
 

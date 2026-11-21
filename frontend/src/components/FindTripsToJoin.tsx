@@ -4,7 +4,13 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Avatar } from "@/components/Avatar";
-import { listJoinRequests, OpenTrip, requestToJoinTrip, searchOpenTrips } from "@/lib/trips";
+import {
+  listJoinRequests,
+  OpenTrip,
+  requestToJoinTrip,
+  searchOpenTrips,
+  shortDate,
+} from "@/lib/trips";
 
 /** Search other travellers' open-to-join trips and ask to join one. */
 export default function FindTripsToJoin() {
@@ -58,7 +64,7 @@ export default function FindTripsToJoin() {
           Find trips to join
         </h2>
         <p className="mt-1 text-sm text-text-subtle">
-          Trips other travellers have opened up. The owner reviews every request.
+          Upcoming trips other travellers have opened up. The owner reviews every request.
         </p>
       </div>
 
@@ -102,6 +108,7 @@ export default function FindTripsToJoin() {
                     {[
                       trip.destination_name,
                       trip.start_date ?? "Dates TBD",
+                      trip.join_deadline && `join by ${shortDate(trip.join_deadline)}`,
                       `by ${trip.owner_name}`,
                     ]
                       .filter(Boolean)

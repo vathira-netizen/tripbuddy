@@ -34,6 +34,8 @@ export interface Trip {
   cover_image_url: string;
   /** Read-only here — toggled only through openTripToJoin/closeTripToJoin. */
   is_open_to_join: boolean;
+  /** Last day join requests are accepted; null = until the trip starts. */
+  join_deadline: string | null;
   collaborators: Collaborator[];
   is_owner: boolean;
   created_at: string;
@@ -49,6 +51,8 @@ export interface OpenTrip {
   start_date: string | null;
   end_date: string | null;
   nights: number;
+  /** Effective last day to ask (the start date if no deadline); null = open-ended. */
+  join_deadline: string | null;
   owner_name: string;
   owner_avatar_url: string;
   collaborator_count: number;
@@ -166,8 +170,11 @@ export const getSharedTrip = (token: string) =>
 
 // --- Open to join / join requests (P4) ---------------------------------------
 
-export const openTripToJoin = (tripId: number) =>
-  api.post<Trip>(`/api/trips/${tripId}/open-to-join/`, {});
+/** Open (or, if already open, update the deadline of) a trip to join requests. */
+export const openTripToJoin = (tripId: number, joinDeadline?: string | null) =>
+  api.post<Trip>(`/api/trips/${tripId}/open-to-join/`, {
+    join_deadline: joinDeadline || null,
+  });
 
 export const closeTripToJoin = (tripId: number) =>
   api.post<Trip>(`/api/trips/${tripId}/close-to-join/`, {});
@@ -277,6 +284,28 @@ export const applyItinerary = (
     days,
     add_to_budget: addToBudget,
   });
+
+/** Today as YYYY-MM-DD in the viewer's timezone — the format date inputs use. */
+export function todayIso(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate(),
+  ).padStart(2, "0")}`;
+}
+
+/** "12 Dec" from a YYYY-MM-DD date, without timezone drift. */
+export function shortDate(iso: string): string {
+  return new Date(iso + "T00:00:00").toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+  });
+}
+
+/** Past trips have ended (or, undated-end, started) before today. */
+export function isPastTrip(trip: Pick<Trip, "start_date" | "end_date">): boolean {
+  const last = trip.end_date ?? trip.start_date;
+  return last !== null && last < todayIso();
+}
 
 /** Day column labels from a trip's date range, falling back to "Day N". */
 export function dayLabels(

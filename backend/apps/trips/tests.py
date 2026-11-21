@@ -465,7 +465,7 @@ def test_open_trips_lists_only_opted_in_trips_for_a_destination(settings_secret)
     # Narrow shape: no budget/share fields leaked to a non-member.
     assert set(resp.data[0]) == {
         "id", "title", "destination_name", "destination_slug", "start_date",
-        "end_date", "nights", "owner_name", "owner_avatar_url", "collaborator_count",
+        "end_date", "nights", "join_deadline", "owner_name", "owner_avatar_url", "collaborator_count",
     }
 
 
@@ -861,3 +861,62 @@ def test_catalogue_data_details_what_the_chat_is_about():
     assert detail[0].startswith("ziro|")  # named place first, despite its price
     assert "ziro" not in data["other_destinations"]
     assert "place-16 (Karnataka)" in data["other_destinations"]  # priciest padding left out
+
+
+@pytest.mark.django_db
+def test_open_trips_lists_only_upcoming_trips_before_their_deadline(settings_secret):
+    from datetime import date, timedelta
+
+    today = date.today()
+    owner = authed_client(str(uuid.uuid4()), "owner@example.com")
+
+    def trip(title, start):
+        body = {"title": title}
+        if start is not None:
+            body["start_date"] = start.isoformat()
+        return owner.post("/api/trips/", body, format="json").data["id"]
+
+    upcoming = trip("Upcoming", today + timedelta(days=10))
+    undated = trip("Undated", None)
+    started = trip("Started", today + timedelta(days=5))
+    closing = trip("Deadline passed", today + timedelta(days=10))
+    for trip_id in (upcoming, undated, started, closing):
+        assert owner.post(f"/api/trips/{trip_id}/open-to-join/").status_code == 200
+    # Simulate time passing, which the API itself won't allow.
+    Trip.objects.filter(pk=started).update(start_date=today - timedelta(days=1))
+    Trip.objects.filter(pk=closing).update(join_deadline=today - timedelta(days=1))
+
+    stranger = authed_client(str(uuid.uuid4()), "stranger@example.com")
+    listed = {t["title"]: t for t in stranger.get("/api/trips/open/").data}
+    assert set(listed) == {"Upcoming", "Undated"}
+    # Without an explicit deadline, requests close on the start date.
+    assert listed["Upcoming"]["join_deadline"] == (today + timedelta(days=10)).isoformat()
+    assert listed["Undated"]["join_deadline"] is None
+
+    late = stranger.post("/api/trip-join-requests/", {"trip": closing}, format="json")
+    assert late.status_code == 400
+    assert "deadline" in str(late.data["trip"])
+
+
+@pytest.mark.django_db
+def test_open_to_join_validates_the_deadline(settings_secret):
+    from datetime import date, timedelta
+
+    today = date.today()
+    owner = authed_client(str(uuid.uuid4()), "owner@example.com")
+    trip_id = owner.post(
+        "/api/trips/",
+        {"title": "Coorg", "start_date": (today + timedelta(days=7)).isoformat()},
+        format="json",
+    ).data["id"]
+    url = f"/api/trips/{trip_id}/open-to-join/"
+
+    past = owner.post(url, {"join_deadline": (today - timedelta(days=1)).isoformat()}, format="json")
+    assert past.status_code == 400
+    after_start = owner.post(url, {"join_deadline": (today + timedelta(days=8)).isoformat()}, format="json")
+    assert after_start.status_code == 400
+
+    deadline = (today + timedelta(days=3)).isoformat()
+    ok = owner.post(url, {"join_deadline": deadline}, format="json")
+    assert ok.status_code == 200
+    assert ok.data["is_open_to_join"] is True and ok.data["join_deadline"] == deadline
