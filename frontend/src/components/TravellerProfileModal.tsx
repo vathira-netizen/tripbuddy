@@ -5,7 +5,16 @@ import Image from "next/image";
 import Link from "next/link";
 import { toast } from "sonner";
 
-import { avatarTint, Badge, blockTraveller, getTraveller, initials, TravellerDetail } from "@/lib/buddies";
+import {
+  avatarTint,
+  Badge,
+  blockTraveller,
+  getTraveller,
+  initials,
+  profileFacts,
+  titleCase,
+  TravellerDetail,
+} from "@/lib/buddies";
 import ReportUserDialog from "@/components/ReportUserDialog";
 
 const BADGE_LABELS: Record<Badge, string> = {
@@ -135,7 +144,7 @@ export default function TravellerProfileModal({
               <div>
                 <p className="font-serif text-lg text-brand-teal">{traveller.display_name}</p>
                 <p className="text-xs text-text-subtle">
-                  {traveller.area_label || "Area not set"}
+                  {[traveller.area_label || "Area not set", ...profileFacts(traveller)].join(" · ")}
                 </p>
               </div>
             </div>
@@ -168,6 +177,24 @@ export default function TravellerProfileModal({
                       className="rounded-full border border-line-input px-2.5 py-1 text-xs capitalize text-brand-teal"
                     >
                       {s}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {traveller.interests.length > 0 && (
+              <div>
+                <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wide text-brand-teal">
+                  Interests
+                </h3>
+                <div className="flex flex-wrap gap-1.5">
+                  {traveller.interests.map((i) => (
+                    <span
+                      key={i}
+                      className="rounded-full border border-line-input px-2.5 py-1 text-xs text-brand-teal"
+                    >
+                      {titleCase(i)}
                     </span>
                   ))}
                 </div>
