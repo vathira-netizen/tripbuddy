@@ -21,7 +21,8 @@ export function Avatar({
   return (
     <span
       aria-hidden="true"
-      style={{ width: size, height: size }}
+      // Initials scale with the circle, so a large profile avatar isn't tiny text.
+      style={{ width: size, height: size, fontSize: Math.max(12, Math.round(size * 0.34)) }}
       className={`grid shrink-0 place-items-center overflow-hidden rounded-full text-sm font-bold ${
         showPhoto ? "" : avatarTint(seed)
       }`}

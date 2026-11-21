@@ -189,3 +189,13 @@ def test_undo_removes_everything_it_created(settings, destinations):
     assert BudgetItem.objects.count() == 0
     # And leaves real users alone.
     assert User.objects.filter(pk=real.pk).exists()
+
+
+@pytest.mark.django_db
+def test_every_pilot_traveller_has_a_unique_bio(settings, destinations):
+    settings.DEBUG = True
+    call_command("seed_pilot", profiles=60, connections=0, trips=0)
+    bios = list(Profile.objects.filter(user__username__startswith="pilot-").values_list("bio", flat=True))
+    assert len(bios) == 60
+    assert all(bios)
+    assert len(set(bios)) == 60

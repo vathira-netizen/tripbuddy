@@ -145,3 +145,58 @@ body {
     text-align: left;
   }
 }
+
+/* Two range inputs stacked on one track (Discover's budget). Each input is
+   transparent and ignores clicks; only its thumb takes the pointer, so both
+   handles stay draggable. The track and filled span are drawn by the page. */
+.dual-range {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 100%;
+  height: 18px;
+  margin: 0;
+  transform: translateY(-50%);
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  pointer-events: none;
+}
+.dual-range::-webkit-slider-runnable-track {
+  height: 18px;
+  background: transparent;
+}
+.dual-range::-moz-range-track {
+  height: 18px;
+  background: transparent;
+}
+.dual-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  pointer-events: auto;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 2px solid var(--color-brand-teal);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.2);
+  cursor: grab;
+}
+.dual-range::-moz-range-thumb {
+  pointer-events: auto;
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 2px solid var(--color-brand-teal);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.2);
+  cursor: grab;
+}
+.dual-range:focus-visible {
+  outline: none;
+}
+.dual-range:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 4px rgb(232 103 76 / 0.3);
+}
+.dual-range:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 4px rgb(232 103 76 / 0.3);
+}
