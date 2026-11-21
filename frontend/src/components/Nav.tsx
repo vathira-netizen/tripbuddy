@@ -14,6 +14,7 @@ import { NotificationBell } from "@/components/NotificationBell";
 const HIDDEN = ["/", "/login", "/register", "/reset-password", "/update-password", "/onboarding"];
 
 const LINKS = [
+  { href: "/", label: "Home" },
   { href: "/discover", label: "Discover" },
   { href: "/chat", label: "Assistant" },
   { href: "/trips", label: "Trips", badge: "trips" as const },
@@ -106,7 +107,7 @@ export function Nav() {
           viewport, and a nav that pushes the page sideways is unusable on a
           phone. */}
       <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
-        <Link href="/discover" aria-label="TripBuddy — home" className="flex items-center">
+        <Link href="/" aria-label="TripBuddy — home" className="flex items-center">
           <Image
             src="/brand/logo-horizontal.svg"
             alt="TripBuddy"
@@ -118,7 +119,8 @@ export function Nav() {
         </Link>
         <div className="flex flex-wrap items-center gap-x-1.5 gap-y-2 text-sm">
           {LINKS.map(({ href, label, badge }) => {
-            const active = pathname === href || pathname.startsWith(href + "/");
+            const active =
+              pathname === href || (href !== "/" && pathname.startsWith(href + "/"));
             const count = badge ? counts[badge] : 0;
             return (
               <Link

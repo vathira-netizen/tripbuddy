@@ -35,6 +35,7 @@ from apps.trips.serializers import (
     GenerateParamsSerializer,
     InviteSerializer,
     ItineraryItemSerializer,
+    OpenToJoinSerializer,
     OpenTripSerializer,
     PublicTripSerializer,
     ReorderSerializer,
@@ -42,6 +43,20 @@ from apps.trips.serializers import (
     TripSerializer,
 )
 
+
+
+def joinable_trips():
+    """Open trips a stranger can still ask to join: upcoming, deadline not past.
+
+    Upcoming means not yet started (undated trips count — there's nothing to
+    have missed). The deadline defaults to the start date, so a trip with
+    neither closes only when its owner closes it.
+    """
+    today = timezone.localdate()
+    return Trip.objects.filter(is_open_to_join=True).filter(
+        Q(start_date__isnull=True) | Q(start_date__gte=today),
+        Q(join_deadline__isnull=True) | Q(join_deadline__gte=today),
+    )
 
 class TripViewSet(
     mixins.CreateModelMixin,
@@ -157,10 +172,19 @@ class TripViewSet(
 
     @extend_schema(
         summary="Open this trip to join requests from any traveller",
-        request=None, responses={200: TripSerializer},
+        description="Optional `join_deadline` (YYYY-MM-DD): the last day "
+                    "requests are accepted, on or before the start date. "
+                    "Omitted, requests close when the trip starts. Calling "
+                    "this again on an open trip updates the deadline.",
+        request=OpenToJoinSerializer, responses={200: TripSerializer},
     )
     @action(detail=True, methods=["post"], url_path="open-to-join")
     def open_to_join(self, request, pk=None):
+        trip = self.get_object()
+        body = OpenToJoinSerializer(data=request.data, context={"trip": trip})
+        body.is_valid(raise_exception=True)
+        trip.join_deadline = body.validated_data.get("join_deadline")
+        trip.save(update_fields=["join_deadline", "updated_at"])
         return self._set_open_to_join(True)
 
     @extend_schema(
@@ -194,12 +218,7 @@ class TripViewSet(
     )
     @action(detail=False, methods=["get"], url_path="open")
     def open_trips(self, request):
-        today = timezone.now().date()
-        qs = (
-            Trip.objects.filter(is_open_to_join=True)
-            .filter(Q(end_date__isnull=True) | Q(end_date__gte=today))
-            .select_related("owner__profile")
-        )
+        qs = joinable_trips().select_related("owner__profile")
         destination_id = request.query_params.get("destination")
         if destination_id:
             qs = qs.filter(destination_id=destination_id)
@@ -453,6 +472,8 @@ class TripJoinRequestViewSet(
         trip = Trip.objects.filter(pk=trip_id, is_open_to_join=True).first()
         if trip is None:
             raise ValidationError({"trip": "No open-to-join trip with that id."})
+        if not joinable_trips().filter(pk=trip.pk).exists():
+            raise ValidationError({"trip": "The deadline to join this trip has passed."})
         if is_trip_member(request.user, trip):
             raise ValidationError({"trip": "You're already on this trip."})
 

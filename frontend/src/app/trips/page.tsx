@@ -8,7 +8,15 @@ import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { Destination } from "@/lib/discover";
 import { type Connection, listConnections } from "@/lib/buddies";
-import { createTrip, inviteCollaborator, listTrips, openTripToJoin, Trip } from "@/lib/trips";
+import {
+  createTrip,
+  inviteCollaborator,
+  isPastTrip,
+  listTrips,
+  openTripToJoin,
+  todayIso,
+  Trip,
+} from "@/lib/trips";
 import { FormError, Input, Select } from "@/components/ui";
 import FindTripsToJoin from "@/components/FindTripsToJoin";
 
@@ -31,6 +39,65 @@ function ArrowRight({ className = "" }: { className?: string }) {
   );
 }
 
+/** One trip in the list: cover photo, title, dates, collaborators. */
+function TripCard({
+  trip,
+  destById,
+}: {
+  trip: Trip;
+  destById: Record<number, Destination>;
+}) {
+  const photo = trip.destination ? destById[trip.destination] : null;
+  const cover = trip.cover_image_url || photo?.image_url;
+  return (
+    <li>
+      <Link
+        href={`/trips/${trip.id}`}
+        className="group block overflow-hidden rounded-[18px] border border-line bg-surface transition hover:-translate-y-0.5"
+      >
+        <div className="relative h-24">
+          {cover ? (
+            <Image
+              src={cover}
+              alt=""
+              width={400}
+              height={200}
+              unoptimized
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <div className="h-full w-full bg-brand-teal" />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-brand-teal/75 to-transparent" />
+          <h3 className="absolute bottom-3 left-4 font-serif text-xl text-white">
+            {trip.title}
+          </h3>
+        </div>
+        <div className="flex items-center justify-between gap-3 p-4">
+          <div className="space-y-1.5">
+            <span className="inline-flex items-center rounded-full bg-surface-alt px-3 py-1 text-xs font-semibold text-brand-teal">
+              {trip.start_date ?? "Dates TBD"}
+              {trip.end_date ? ` – ${trip.end_date}` : ""}
+            </span>
+            {trip.collaborators.length > 0 && (
+              <p className="text-xs text-text-subtle">
+                {trip.collaborators.length} collaborator
+                {trip.collaborators.length === 1 ? "" : "s"}
+              </p>
+            )}
+          </div>
+          <span
+            aria-hidden
+            className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-full bg-brand-teal text-white transition group-hover:brightness-90"
+          >
+            <ArrowRight className="h-4 w-4" />
+          </span>
+        </div>
+      </Link>
+    </li>
+  );
+}
+
 function TripsInner() {
   const params = useSearchParams();
   // A destination detail page's "Start a Trip Here" CTA lands here with the
@@ -48,6 +115,8 @@ function TripsInner() {
   const [endDate, setEndDate] = useState("");
   const [budget, setBudget] = useState("");
   const [openToJoin, setOpenToJoin] = useState(false);
+  const [joinDeadline, setJoinDeadline] = useState("");
+  const [showPast, setShowPast] = useState(false);
   const [saving, setSaving] = useState(false);
   const [friends, setFriends] = useState<Connection[]>([]);
   const [invitees, setInvitees] = useState<Set<string>>(new Set());
@@ -99,7 +168,7 @@ function TripsInner() {
         target_amount: budget || null,
       });
       if (openToJoin) {
-        trip = await openTripToJoin(trip.id);
+        trip = await openTripToJoin(trip.id, joinDeadline);
       }
       // Adding friends is what turns a trip into a group (with its own chat).
       // Allow partial failure: the trip exists either way, and the trip page
@@ -120,6 +189,7 @@ function TripsInner() {
       setEndDate("");
       setBudget("");
       setOpenToJoin(false);
+      setJoinDeadline("");
     } catch {
       setError("Couldn't create the trip. Check the dates and try again.");
     } finally {
@@ -141,6 +211,19 @@ function TripsInner() {
       return [t.title, dest?.name, dest?.state].some((v) => v?.toLowerCase().includes(q));
     });
   }, [trips, tripQuery, destById]);
+
+  // Upcoming (and ongoing) first, soonest at the top; past trips are tucked
+  // away behind a toggle so the list stays about what's next.
+  const upcomingTrips = useMemo(
+    () =>
+      shownTrips
+        .filter((t) => !isPastTrip(t))
+        .sort((a, b) =>
+          (a.start_date ?? "9999").localeCompare(b.start_date ?? "9999"),
+        ),
+    [shownTrips],
+  );
+  const pastTrips = useMemo(() => shownTrips.filter(isPastTrip), [shownTrips]);
 
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 space-y-8 px-4 py-6">
@@ -177,6 +260,7 @@ function TripsInner() {
             label="Start"
             type="date"
             value={startDate}
+            min={todayIso()}
             max={endDate || undefined}
             onChange={(e) => setStartDate(e.target.value)}
           />
@@ -244,6 +328,21 @@ function TripsInner() {
           />
           Open to join — let other travellers ask to join this trip
         </label>
+        {openToJoin && (
+          <div className="max-w-xs">
+            <Input
+              label="Deadline to join (optional)"
+              type="date"
+              value={joinDeadline}
+              min={todayIso()}
+              max={startDate || undefined}
+              onChange={(e) => setJoinDeadline(e.target.value)}
+            />
+            <p className="mt-1 text-xs text-text-subtle">
+              Requests close after this day. Left blank, they close when the trip starts.
+            </p>
+          </div>
+        )}
         <button
           type="submit"
           disabled={saving || !title.trim()}
@@ -275,59 +374,38 @@ function TripsInner() {
             None of your trips match &ldquo;{tripQuery.trim()}&rdquo;.
           </p>
         ) : (
-          <ul className="grid gap-[18px] sm:grid-cols-2">
-            {shownTrips.map((trip) => {
-              const photo = trip.destination ? destById[trip.destination] : null;
-              const cover = trip.cover_image_url || photo?.image_url;
-              return (
-                <li key={trip.id}>
-                  <Link
-                    href={`/trips/${trip.id}`}
-                    className="group block overflow-hidden rounded-[18px] border border-line bg-surface transition hover:-translate-y-0.5"
-                  >
-                    <div className="relative h-24">
-                      {cover ? (
-                        <Image
-                          src={cover}
-                          alt=""
-                          width={400}
-                          height={200}
-                          unoptimized
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <div className="h-full w-full bg-brand-teal" />
-                      )}
-                      <div className="absolute inset-0 bg-gradient-to-t from-brand-teal/75 to-transparent" />
-                      <h3 className="absolute bottom-3 left-4 font-serif text-xl text-white">
-                        {trip.title}
-                      </h3>
-                    </div>
-                    <div className="flex items-center justify-between gap-3 p-4">
-                      <div className="space-y-1.5">
-                        <span className="inline-flex items-center rounded-full bg-surface-alt px-3 py-1 text-xs font-semibold text-brand-teal">
-                          {trip.start_date ?? "Dates TBD"}
-                          {trip.end_date ? ` – ${trip.end_date}` : ""}
-                        </span>
-                        {trip.collaborators.length > 0 && (
-                          <p className="text-xs text-text-subtle">
-                            {trip.collaborators.length} collaborator
-                            {trip.collaborators.length === 1 ? "" : "s"}
-                          </p>
-                        )}
-                      </div>
-                      <span
-                        aria-hidden
-                        className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-full bg-brand-teal text-white transition group-hover:brightness-90"
-                      >
-                        <ArrowRight className="h-4 w-4" />
-                      </span>
-                    </div>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+          <>
+            {upcomingTrips.length > 0 ? (
+              <ul className="grid gap-[18px] sm:grid-cols-2">
+                {upcomingTrips.map((trip) => (
+                  <TripCard key={trip.id} trip={trip} destById={destById} />
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-text-subtle">
+                No upcoming trips — plan your next one above.
+              </p>
+            )}
+            {pastTrips.length > 0 && (
+              <div className="space-y-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPast((v) => !v)}
+                  aria-expanded={showPast}
+                  className="text-sm font-semibold text-brand-teal hover:text-brand-coral-ink"
+                >
+                  {showPast ? "Hide" : "Show"} past trips ({pastTrips.length})
+                </button>
+                {showPast && (
+                  <ul className="grid gap-[18px] opacity-80 sm:grid-cols-2">
+                    {pastTrips.map((trip) => (
+                      <TripCard key={trip.id} trip={trip} destById={destById} />
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </>
         )}
       </section>
 

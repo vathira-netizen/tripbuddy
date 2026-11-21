@@ -391,3 +391,46 @@ def test_summary_lists_notifications_for_messages_and_trip_joins(accepted):
     alice_summary = client_for(alice).get("/api/messages/summary/").data
     assert alice_summary["pending_trip_joins"] == 0
     assert alice_summary["notifications"] == []
+
+
+@pytest.mark.django_db
+def test_clear_chat_hides_history_for_me_only(accepted):
+    connection, (alice_user, alice), (bob_user, bob) = accepted
+    Message.objects.create(connection=connection, sender=alice_user, body="old one")
+
+    resp = client_for(bob).post(f"{url(connection)}clear/")
+    assert resp.status_code == 200
+    assert client_for(bob).get("/api/messages/summary/").data["unread_messages"] == 0
+
+    Message.objects.create(connection=connection, sender=alice_user, body="new one")
+    bob_view = [m["body"] for m in client_for(bob).get(url(connection)).data["results"]]
+    alice_view = [m["body"] for m in client_for(alice).get(url(connection)).data["results"]]
+    assert bob_view == ["new one"]
+    assert alice_view == ["old one", "new one"]
+
+
+@pytest.mark.django_db
+def test_clear_chat_refuses_strangers(accepted, settings_secret):
+    connection, _, _ = accepted
+    _, mallory = make_traveller("mallory")
+    assert client_for(mallory).post(f"{url(connection)}clear/").status_code == 403
+
+
+@pytest.mark.django_db
+def test_clear_trip_chat_hides_history_and_preview(accepted):
+    from apps.messaging.models import TripMessage
+    from apps.trips.models import Trip, TripCollaborator
+
+    _, (alice_user, alice), (bob_user, bob) = accepted
+    trip = Trip.objects.create(owner=alice_user, title="Goa week")
+    TripCollaborator.objects.create(trip=trip, user=bob_user)
+    TripMessage.objects.create(trip=trip, sender=alice_user, body="before")
+
+    assert client_for(bob).post(f"/api/trips/{trip.pk}/messages/clear/").status_code == 200
+
+    history = client_for(bob).get(f"/api/trips/{trip.pk}/messages/").data["results"]
+    assert history == []
+    chats = client_for(bob).get("/api/trip-chats/").data
+    assert chats[0]["last_message"] is None and chats[0]["unread"] == 0
+    # Alice still sees her message.
+    assert len(client_for(alice).get(f"/api/trips/{trip.pk}/messages/").data["results"]) == 1

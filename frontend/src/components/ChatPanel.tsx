@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { toast } from "sonner";
 
 import { ApiError } from "@/lib/api";
 import {
@@ -17,6 +18,8 @@ export interface ChatSource {
   list: () => Promise<Message[]>;
   send: (body: string) => Promise<Message>;
   markRead: () => Promise<unknown>;
+  /** "Clear chat" for this user only; resolves with the server's cut-off. */
+  clear?: () => Promise<{ cleared_at: string }>;
   /** Optional instant delivery (DMs use Supabase Realtime); polling covers the rest. */
   subscribe?: (
     onInsert: (message: Message) => void,
@@ -44,6 +47,28 @@ function Send({ className = "" }: { className?: string }) {
     >
       <path d="m22 2-7 20-4-9-9-4Z" />
       <path d="M22 2 11 13" />
+    </svg>
+  );
+}
+
+/** Lucide `trash-2`, inlined. */
+function Trash({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 24 24"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3 6h18" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
     </svg>
   );
 }
@@ -83,6 +108,9 @@ export function ChatPanel({
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const markedRef = useRef(0);
+  // After "Clear chat", a poll already in flight may still return older
+  // messages; anything at or before this cut-off is dropped, not re-shown.
+  const clearedAtRef = useRef(0);
 
   /**
    * Insert or replace by id.
@@ -92,6 +120,7 @@ export function ChatPanel({
    * and a poll refreshes `read_at` / `seen_by` on messages already shown.
    */
   const upsert = useCallback((incoming: Message) => {
+    if (new Date(incoming.created_at).getTime() <= clearedAtRef.current) return;
     setMessages((current) => {
       const index = current.findIndex((m) => m.id === incoming.id);
       if (index === -1) {
@@ -225,6 +254,26 @@ export function ChatPanel({
     });
   };
 
+  const clearChat = async () => {
+    if (!source.clear) return;
+    if (
+      !window.confirm(
+        "Clear this chat? Messages so far disappear for you only; everyone else keeps them.",
+      )
+    ) {
+      return;
+    }
+    try {
+      const { cleared_at } = await source.clear();
+      clearedAtRef.current = new Date(cleared_at).getTime();
+      setMessages([]);
+      notifyUnreadChanged();
+      toast.success("Chat cleared");
+    } catch {
+      toast.error("Couldn't clear this chat. Try again.");
+    }
+  };
+
   const remaining = MAX_BODY_LENGTH - draft.trim().length;
 
   return (
@@ -245,6 +294,18 @@ export function ChatPanel({
             />
             {live ? "Live" : "Offline"}
           </span>
+          {source.clear && (
+            <button
+              type="button"
+              onClick={clearChat}
+              disabled={messages.length === 0}
+              aria-label="Clear chat"
+              title="Clear chat (for you only)"
+              className="grid h-7 w-7 place-items-center rounded-full text-text-subtle hover:bg-surface-alt hover:text-brand-coral-ink disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+            >
+              <Trash className="h-4 w-4" />
+            </button>
+          )}
           {menu}
         </div>
       </header>
