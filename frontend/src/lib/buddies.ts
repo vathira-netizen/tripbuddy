@@ -201,3 +201,28 @@ export const BUDGET_STYLE_LABELS: Record<string, string> = {
   mid: "Mid-range",
   comfort: "Comfort",
 };
+
+const GENDER_LABELS: Record<string, string> = {
+  female: "Female",
+  male: "Male",
+  non_binary: "Non-binary",
+};
+
+/** "hindi" → "Hindi"; vocab values are stored lowercase. */
+export const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/**
+ * The quick facts shown on a buddy card and profile: age group, gender and
+ * budget style, skipping anything not filled in (or "prefer not to say").
+ */
+export function profileFacts(p: {
+  age_band: string;
+  gender: string;
+  budget_style: string;
+}): string[] {
+  return [
+    p.age_band && `${p.age_band.replace("-", "–")} yrs`,
+    GENDER_LABELS[p.gender],
+    BUDGET_STYLE_LABELS[p.budget_style] && `${BUDGET_STYLE_LABELS[p.budget_style]} budget`,
+  ].filter((v): v is string => Boolean(v));
+}

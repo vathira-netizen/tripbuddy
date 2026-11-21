@@ -37,6 +37,7 @@ from apps.common.choices import (
     BUDGET_TIER_ORDER,
     INTEREST_TAGS,
     LANGUAGES,
+    TRAVEL_STYLES,
 )
 from apps.connections.models import Connection
 from apps.destinations.models import Destination, SavedDestination
@@ -116,6 +117,16 @@ ITINERARY_IDEAS = [
 ]
 
 # Totals default to 100 records: 60 profiles + 25 connections + 15 trips.
+# Short first-person bios, filled from the profile's own interests and city so
+# the buddy card reads like a person rather than a row of tags.
+BIO_TEMPLATES = [
+    "{a} and {b} are my thing. Based in {city}, always planning the next trip.",
+    "Weekend wanderer from {city}. Happiest with good {b} and a bit of {a}.",
+    "Looking for buddies who love {a} as much as I do. {city} is home.",
+    "{city} local who travels for the {a}, stays for the {b}.",
+    "Slow traveller. Into {a}, {b} and long train rides out of {city}.",
+]
+
 DEFAULTS = {"profiles": 60, "connections": 25, "trips": 15}
 
 
@@ -210,6 +221,14 @@ class Command(BaseCommand):
             languages = rng.sample(LANGUAGES, rng.randint(1, 3))
             if "english" not in languages and rng.random() < 0.7:
                 languages.append("english")
+            # A per-person RNG, so adding bios doesn't shift the shared random
+            # sequence the connections and trips below are drawn from.
+            own = random.Random(handle)
+            bio = own.choice(BIO_TEMPLATES).format(
+                a=interests[0], b=interests[1], city=label.split(",")[0]
+            )
+            bio = bio[0].upper() + bio[1:]
+            travel_styles = sorted(own.sample(TRAVEL_STYLES, own.randint(1, 2)))
 
             profile, _ = Profile.objects.update_or_create(
                 user=user,
@@ -217,6 +236,8 @@ class Command(BaseCommand):
                     # uuid5 keeps the id stable across runs and machines.
                     "supabase_user_id": uuid.uuid5(PILOT_NAMESPACE, handle),
                     "display_name": name,
+                    "bio": bio,
+                    "travel_styles": travel_styles,
                     "age_band": rng.choice(AGE_BAND_ORDER),
                     "gender": "female" if female else "male",
                     "avatar_url": avatar_url,

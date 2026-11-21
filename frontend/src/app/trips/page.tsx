@@ -328,21 +328,25 @@ function TripsInner() {
           />
           Open to join — let other travellers ask to join this trip
         </label>
-        {openToJoin && (
-          <div className="max-w-xs">
-            <Input
-              label="Deadline to join (optional)"
-              type="date"
-              value={joinDeadline}
-              min={todayIso()}
-              max={startDate || undefined}
-              onChange={(e) => setJoinDeadline(e.target.value)}
-            />
-            <p className="mt-1 text-xs text-text-subtle">
-              Requests close after this day. Left blank, they close when the trip starts.
-            </p>
-          </div>
-        )}
+        <div className="max-w-xs">
+          <Input
+            label="Last date to join (optional)"
+            type="date"
+            value={joinDeadline}
+            min={todayIso()}
+            max={startDate || undefined}
+            onChange={(e) => {
+              setJoinDeadline(e.target.value);
+              // A deadline only means something on an open trip.
+              if (e.target.value) setOpenToJoin(true);
+            }}
+          />
+          <p className="mt-1 text-xs text-text-subtle">
+            {openToJoin
+              ? "Join requests close after this day. Left blank, they close when the trip starts."
+              : "Picking a date opens the trip to join requests until then."}
+          </p>
+        </div>
         <button
           type="submit"
           disabled={saving || !title.trim()}
