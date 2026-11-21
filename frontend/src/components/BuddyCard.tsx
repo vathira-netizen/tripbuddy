@@ -4,7 +4,13 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { ApiError } from "@/lib/api";
-import { BuddyCandidate, initials, sendConnectionRequest } from "@/lib/buddies";
+import {
+  BuddyCandidate,
+  initials,
+  profileFacts,
+  sendConnectionRequest,
+  titleCase,
+} from "@/lib/buddies";
 import TravellerProfileModal from "@/components/TravellerProfileModal";
 
 /** Lucide `map-pin`, inlined — matches the `heart` icon already inlined on /discover. */
@@ -49,6 +55,9 @@ export function BuddyCard({
   const [showProfile, setShowProfile] = useState(false);
 
   const isTop = index === 0;
+  const facts = profileFacts(candidate);
+  const shownInterests = candidate.interests.slice(0, 4);
+  const moreInterests = candidate.interests.length - shownInterests.length;
   const accent = isTop ? "text-brand-coral" : "text-brand-teal";
 
   const connect = async () => {
@@ -115,6 +124,43 @@ export function BuddyCard({
           </div>
         </div>
       </header>
+
+      {facts.length > 0 && (
+        <ul aria-label="About" className="flex flex-wrap gap-1.5">
+          {facts.map((fact) => (
+            <li
+              key={fact}
+              className="rounded-full border border-line-input px-2.5 py-0.5 text-[11px] font-semibold text-brand-teal"
+            >
+              {fact}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {candidate.bio && (
+        <p className="line-clamp-2 text-sm text-foreground">{candidate.bio}</p>
+      )}
+
+      <dl className="space-y-1 text-xs">
+        {shownInterests.length > 0 && (
+          <div className="flex gap-1.5">
+            <dt className="shrink-0 font-semibold text-brand-teal">Into</dt>
+            <dd className="text-text-subtle">
+              {shownInterests.map(titleCase).join(", ")}
+              {moreInterests > 0 && ` +${moreInterests} more`}
+            </dd>
+          </div>
+        )}
+        {candidate.languages.length > 0 && (
+          <div className="flex gap-1.5">
+            <dt className="shrink-0 font-semibold text-brand-teal">Speaks</dt>
+            <dd className="text-text-subtle">
+              {candidate.languages.map(titleCase).join(", ")}
+            </dd>
+          </div>
+        )}
+      </dl>
 
       <ScoreBar score={candidate.score} isTop={isTop} name={candidate.display_name} />
 
