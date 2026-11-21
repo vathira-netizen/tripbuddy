@@ -29,7 +29,8 @@ class Profile(models.Model):
     # Public URL of the file in the Supabase Storage `avatars` bucket. Uploaded
     # directly from the browser via the Supabase client; Django only stores the
     # resulting URL, never handles the file itself.
-    avatar_url = models.URLField(blank=True, default="")
+    # Long enough for hotlinked Unsplash URLs (pilot data), which run ~230 chars.
+    avatar_url = models.URLField(max_length=500, blank=True, default="")
     bio = models.CharField(max_length=280, blank=True)
     travel_styles = ArrayField(models.CharField(max_length=20), default=list, blank=True)
     # UPI virtual payment address (e.g. "name@okbank") for the group settle-up
