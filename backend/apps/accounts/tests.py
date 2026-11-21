@@ -524,3 +524,33 @@ def test_geocoder_rounds_to_two_dp(monkeypatch):
     point, label = geocoding.geocode_city("Bengaluru")
     assert point.y == 12.97 and point.x == 77.59
     assert label == "Bengaluru"
+
+
+@pytest.mark.django_db
+def test_geocode_returns_a_short_label_and_rounded_point(settings_secret, client, monkeypatch):
+    from django.contrib.gis.geos import Point
+
+    from apps.accounts import views as views_mod
+
+    monkeypatch.setattr(
+        views_mod,
+        "geocode_city",
+        lambda q: (Point(76.27, 9.93, srid=4326), "Kochi, Ernakulam, Kerala, India"),
+    )
+    resp = auth(client, make_token()).get("/api/geocode/?q=kochi")
+    assert resp.status_code == 200
+    assert resp.data == {"label": "Kochi, Kerala", "lat": 9.93, "lng": 76.27}
+
+
+@pytest.mark.django_db
+def test_geocode_unknown_place_is_404_and_needs_auth(settings_secret, client, monkeypatch):
+    from apps.accounts import views as views_mod
+    from apps.accounts.geocoding import GeocodingError
+
+    def nope(q):
+        raise GeocodingError("nothing")
+
+    monkeypatch.setattr(views_mod, "geocode_city", nope)
+    assert client.get("/api/geocode/?q=x").status_code == 401
+    assert auth(client, make_token()).get("/api/geocode/?q=zzz").status_code == 404
+    assert auth(client, make_token()).get("/api/geocode/?q=").status_code == 400
