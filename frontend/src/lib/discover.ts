@@ -134,6 +134,8 @@ export interface DestinationFilters {
   interests?: string[];
   ordering?: string;
   page?: number;
+  /** Starting point [lat, lng]: destinations within ~40 km of it are left out. */
+  excludeNear?: [number, number];
 }
 
 function buildQuery(f: DestinationFilters): string {
@@ -145,6 +147,7 @@ function buildQuery(f: DestinationFilters): string {
   if (f.interests?.length) q.set("interests", f.interests.join(","));
   if (f.ordering) q.set("ordering", f.ordering);
   if (f.page && f.page > 1) q.set("page", String(f.page));
+  if (f.excludeNear) q.set("exclude_near", f.excludeNear.join(","));
   const s = q.toString();
   return s ? `?${s}` : "";
 }
@@ -159,9 +162,10 @@ export const listDestinationsPage = (f: DestinationFilters) =>
 export const getDestination = (slug: string) =>
   api.get<Destination>(`/api/destinations/${slug}/`);
 
+/** Nearest first, leaving out the starting city itself (see excludeNear). */
 export const nearbyDestinations = (lat: number, lng: number, radiusKm = 500) =>
   api.get<Destination[]>(
-    `/api/destinations/nearby/?lat=${lat}&lng=${lng}&radius_km=${radiusKm}`,
+    `/api/destinations/nearby/?lat=${lat}&lng=${lng}&radius_km=${radiusKm}&exclude_near=${lat},${lng}`,
   );
 
 export const listSaved = () =>
