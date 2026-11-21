@@ -208,6 +208,22 @@ def test_nearby_orders_by_distance_and_respects_radius(client):
     assert resp.data[0]["distance_km"] is not None
 
 
+@pytest.mark.django_db
+def test_exclude_near_hides_the_starting_city_but_keeps_day_trips(client):
+    make_dest("bengaluru", 12.97, 77.59)
+    make_dest("nandi-hills", 13.37, 77.68)   # ~45 km north
+    make_dest("mysuru", 12.30, 76.64)        # ~130 km
+
+    home = "exclude_near=12.97,77.59"
+    nearby = client.get(f"/api/destinations/nearby/?lat=12.97&lng=77.59&radius_km=500&{home}")
+    assert [d["slug"] for d in nearby.data] == ["nandi-hills", "mysuru"]
+
+    listed = client.get(f"/api/destinations/?{home}")
+    assert sorted(d["slug"] for d in listed.data["results"]) == ["mysuru", "nandi-hills"]
+
+    assert client.get("/api/destinations/?exclude_near=nope").status_code == 400
+
+
 # --- Saved list -----------------------------------------------------------
 
 

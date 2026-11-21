@@ -244,6 +244,9 @@ function DiscoverInner() {
         interests,
         ordering: "avg_daily_budget",
         page,
+        // Don't suggest the place you're starting from.
+        excludeNear:
+          originLat !== undefined && originLng !== undefined ? [originLat, originLng] : undefined,
       });
       return { results: pageData.results, count: pageData.count, paged: true };
     };
