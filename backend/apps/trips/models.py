@@ -36,6 +36,9 @@ class Trip(models.Model):
     # Owner opt-in: a trip is never publicly joinable by strangers unless this
     # is explicitly set. See TripJoinRequest for the ask-to-join flow it gates.
     is_open_to_join = models.BooleanField(default=False)
+    # Last day a stranger may ask to join. Null means "until the trip starts";
+    # see effective_join_deadline.
+    join_deadline = models.DateField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -45,6 +48,11 @@ class Trip(models.Model):
 
     def __str__(self):
         return self.title
+
+    @property
+    def effective_join_deadline(self):
+        """The last day join requests are accepted: the deadline, else the start."""
+        return self.join_deadline or self.start_date
 
     @property
     def nights(self) -> int:

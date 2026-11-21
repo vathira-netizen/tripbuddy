@@ -5,7 +5,13 @@ import Link from "next/link";
 import { toast } from "sonner";
 
 import { avatarTint, initials } from "@/lib/buddies";
-import { listJoinRequests, listOpenTrips, OpenTrip, requestToJoinTrip } from "@/lib/trips";
+import {
+  listJoinRequests,
+  listOpenTrips,
+  OpenTrip,
+  requestToJoinTrip,
+  shortDate,
+} from "@/lib/trips";
 
 /** Trips to this destination whose owner has opted in to join requests. */
 export default function OpenTripsToJoin({
@@ -92,6 +98,7 @@ export default function OpenTripsToJoin({
                 <p className="truncate text-sm font-medium text-brand-teal">{trip.title}</p>
                 <p className="truncate text-xs text-text-subtle">
                   {trip.owner_name} · {trip.start_date ?? "Dates TBD"}
+                  {trip.join_deadline && ` · join by ${shortDate(trip.join_deadline)}`}
                   {trip.collaborator_count > 0 &&
                     ` · ${trip.collaborator_count} traveller${trip.collaborator_count === 1 ? "" : "s"}`}
                 </p>

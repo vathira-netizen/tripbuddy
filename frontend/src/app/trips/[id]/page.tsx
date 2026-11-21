@@ -25,6 +25,8 @@ import {
   listItineraryItems,
   openTripToJoin,
   shareTrip,
+  shortDate,
+  todayIso,
   unshareTrip,
 } from "@/lib/trips";
 import ItineraryBoard from "@/components/ItineraryBoard";
@@ -33,6 +35,18 @@ import TripAssistantPanel from "@/components/TripAssistantPanel";
 import TripCoverUpload from "@/components/TripCoverUpload";
 import { TripChatThread } from "@/components/TripChatThread";
 import { FormError } from "@/components/ui";
+
+/** The first human-readable message in a DRF error body, if any. */
+function apiMessage(err: unknown): string | null {
+  if (!(err instanceof ApiError)) return null;
+  const find = (v: unknown): string | null => {
+    if (typeof v === "string") return v;
+    if (Array.isArray(v)) return v.map(find).find(Boolean) ?? null;
+    if (v && typeof v === "object") return Object.values(v).map(find).find(Boolean) ?? null;
+    return null;
+  };
+  return find(err.data);
+}
 
 export default function TripPlannerPage() {
   const params = useParams<{ id: string }>();
@@ -125,8 +139,21 @@ export default function TripPlannerPage() {
       if (err instanceof ApiError && err.status === 403) {
         setError("Only the trip creator can open or close this trip to join requests.");
       } else {
-        setError("Couldn't update that. Try again.");
+        setError(apiMessage(err) ?? "Couldn't update that. Try again.");
       }
+    } finally {
+      setTogglingJoin(false);
+    }
+  }
+
+  /** Change the join deadline of an already-open trip ("" = until it starts). */
+  async function saveJoinDeadline(value: string) {
+    setTogglingJoin(true);
+    setError(null);
+    try {
+      setTrip(await openTripToJoin(tripId, value));
+    } catch (err) {
+      setError(apiMessage(err) ?? "Couldn't save that deadline. Try again.");
     } finally {
       setTogglingJoin(false);
     }
@@ -364,6 +391,28 @@ export default function TripPlannerPage() {
               />
               Open to join — let travellers browsing this destination ask to join
             </label>
+            {trip.is_open_to_join &&
+              (trip.is_owner ? (
+                <label className="mt-2 flex flex-wrap items-center gap-2 text-xs text-text-subtle">
+                  Deadline to join
+                  <input
+                    type="date"
+                    value={trip.join_deadline ?? ""}
+                    min={todayIso()}
+                    max={trip.start_date ?? undefined}
+                    disabled={togglingJoin}
+                    onChange={(e) => saveJoinDeadline(e.target.value)}
+                    className="rounded-lg border border-line-input bg-white px-2 py-1 text-xs text-foreground"
+                  />
+                  {!trip.join_deadline && <span>(blank: until the trip starts)</span>}
+                </label>
+              ) : (
+                (trip.join_deadline ?? trip.start_date) && (
+                  <p className="mt-2 text-xs text-text-subtle">
+                    Join requests close on {shortDate((trip.join_deadline ?? trip.start_date)!)}.
+                  </p>
+                )
+              ))}
           </div>
         </section>
       </div>
