@@ -84,6 +84,62 @@ export function Heart({ filled, className = "" }: { filled: boolean; className?:
   );
 }
 
+/**
+ * One track, two handles: the min and max daily budget. Two native range
+ * inputs share the track (see .dual-range in globals.css), so keyboard and
+ * screen-reader support come for free.
+ */
+function BudgetRange({
+  low,
+  high,
+  onLow,
+  onHigh,
+}: {
+  low: number;
+  high: number;
+  onLow: (v: number) => void;
+  onHigh: (v: number) => void;
+}) {
+  const pct = (v: number) => (v - BUDGET_MIN) / (BUDGET_MAX - BUDGET_MIN);
+  // The thumbs travel 9px in from each end (half their width); match that so
+  // the teal span starts and stops under the handles.
+  const at = (v: number) => `calc(9px + (100% - 18px) * ${pct(v)})`;
+  return (
+    <div className="relative h-[42px]">
+      <div className="absolute inset-x-[9px] top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-line" />
+      <div
+        className="absolute top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-brand-teal"
+        style={{ left: at(low), width: `calc((100% - 18px) * ${pct(high) - pct(low)})` }}
+      />
+      <input
+        type="range"
+        min={BUDGET_MIN}
+        max={BUDGET_MAX}
+        step={100}
+        value={low}
+        aria-label="Minimum daily budget"
+        aria-valuetext={formatINR(low)}
+        onChange={(e) => onLow(Number(e.target.value))}
+        // When both handles meet at the top end, the low one must sit on top
+        // or it could never be dragged back down.
+        style={{ zIndex: low > BUDGET_MAX - 500 ? 4 : 3 }}
+        className="dual-range"
+      />
+      <input
+        type="range"
+        min={BUDGET_MIN}
+        max={BUDGET_MAX}
+        step={100}
+        value={high}
+        aria-label="Maximum daily budget"
+        aria-valuetext={formatINR(high)}
+        onChange={(e) => onHigh(Number(e.target.value))}
+        className="dual-range z-[3]"
+      />
+    </div>
+  );
+}
+
 function DiscoverInner() {
   const router = useRouter();
   const params = useSearchParams();
@@ -299,60 +355,72 @@ function DiscoverInner() {
         </Link>
       </div>
 
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <TravellingFrom origin={origin} profileOrigin={profileOrigin} onChange={changeOrigin} />
-        {origin && sort !== "proximity" && (
-          <button
-            type="button"
-            onClick={() => setParam({ sort: "proximity" })}
-            className="text-sm font-semibold text-brand-teal underline-offset-4 hover:text-brand-coral-ink hover:underline"
-          >
-            Show nearest first
-          </button>
-        )}
-      </div>
+      {/* Filter card: where you're starting from and how results are ordered
+          on top, then one even row of filters. Every control is the same
+          height so the rows line up. */}
+      <div className="mb-5 rounded-[18px] border border-line bg-surface">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line p-4">
+          <TravellingFrom origin={origin} profileOrigin={profileOrigin} onChange={changeOrigin} />
 
-      {/* Filter bar — one surface card across the top (ref 6a). */}
-      <div className="mb-5 rounded-[18px] border border-line bg-surface p-4">
-        <div className="flex flex-wrap items-start gap-x-6 gap-y-4">
-          <fieldset className="min-w-[190px]">
-            <legend className="text-xs text-text-subtle">Budget</legend>
-            <p className="text-sm text-text-muted">
-              <span className="font-bold tabular-nums text-brand-teal">
-                {formatINR(minBudget)}–{formatINR(maxBudget)}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span id="sort-label" className="text-xs text-text-subtle">
+              Sort by
+            </span>
+            <div
+              role="radiogroup"
+              aria-labelledby="sort-label"
+              className="inline-flex h-[42px] rounded-full bg-[#efece4] p-1"
+            >
+              {(["budget", "proximity"] as const).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  role="radio"
+                  aria-checked={sort === option}
+                  onClick={() => setParam({ sort: option })}
+                  className={`rounded-full px-4 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-brand-coral/40 ${
+                    sort === option
+                      ? "bg-white font-bold text-brand-teal shadow-sm"
+                      : "text-text-subtle hover:text-brand-teal"
+                  }`}
+                >
+                  {option === "budget" ? "Lowest budget" : "Nearest"}
+                </button>
+              ))}
+            </div>
+            {sort === "proximity" && (
+              <Dropdown
+                hideLabel
+                align="right"
+                className="w-[170px]"
+                label="Within"
+                value={String(km)}
+                onChange={(v) => setParam({ km: v })}
+                options={DISTANCE_LIMITS.map((d) => ({ value: String(d), label: `Within ${d} km` }))}
+              />
+            )}
+          </div>
+        </div>
+
+        <div className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="space-y-1">
+            <div className="flex items-baseline justify-between gap-2 text-xs">
+              <span id="budget-label" className="text-text-subtle">
+                Budget per day
               </span>
-              /day
-            </p>
-            <input
-              type="range"
-              min={BUDGET_MIN}
-              max={BUDGET_MAX}
-              step={100}
-              value={minBudget}
-              aria-label="Minimum daily budget"
-              onChange={(e) =>
-                setParam({ min: String(Math.min(Number(e.target.value), maxBudget)) })
-              }
-              className="mt-1.5 w-full accent-brand-teal"
+              <span className="font-bold tabular-nums text-brand-teal">
+                {formatINR(minBudget)} – {formatINR(maxBudget)}
+              </span>
+            </div>
+            <BudgetRange
+              low={minBudget}
+              high={maxBudget}
+              onLow={(v) => setParam({ min: String(Math.min(v, maxBudget)) })}
+              onHigh={(v) => setParam({ max: String(Math.max(v, minBudget)) })}
             />
-            <input
-              type="range"
-              min={BUDGET_MIN}
-              max={BUDGET_MAX}
-              step={100}
-              value={maxBudget}
-              aria-label="Maximum daily budget"
-              onChange={(e) =>
-                setParam({ max: String(Math.max(Number(e.target.value), minBudget)) })
-              }
-              className="w-full accent-brand-teal"
-            />
-          </fieldset>
-
-          <div className="hidden h-10 w-px self-center bg-line sm:block" />
+          </div>
 
           <Dropdown
-            className="min-w-[160px]"
             label="Region"
             value={region}
             onChange={(v) => setParam({ region: v })}
@@ -363,7 +431,6 @@ function DiscoverInner() {
           />
 
           <Dropdown
-            className="min-w-[180px]"
             label="State"
             value={state}
             onChange={(v) => setParam({ state: v })}
@@ -386,43 +453,6 @@ function DiscoverInner() {
             onClear={() => setParam({ interests: null })}
             emptyLabel="Any interest"
           />
-
-          {sort === "proximity" && (
-            <Dropdown
-              className="min-w-[130px]"
-              label="Within"
-              value={String(km)}
-              onChange={(v) => setParam({ km: v })}
-              options={DISTANCE_LIMITS.map((d) => ({ value: String(d), label: `${d} km` }))}
-            />
-          )}
-
-          {/* Segmented control: the active option is a white pill on a warm track. */}
-          <fieldset className="ml-auto">
-            <legend className="text-xs text-text-subtle">Sort by</legend>
-            <div
-              role="radiogroup"
-              aria-label="Sort by"
-              className="mt-1 inline-flex rounded-full bg-[#efece4] p-0.5"
-            >
-              {(["budget", "proximity"] as const).map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  role="radio"
-                  aria-checked={sort === option}
-                  onClick={() => setParam({ sort: option })}
-                  className={`rounded-full px-4 py-1.5 text-sm transition ${
-                    sort === option
-                      ? "bg-white font-bold text-brand-teal shadow-sm"
-                      : "text-text-subtle hover:text-brand-teal"
-                  }`}
-                >
-                  {option === "budget" ? "Budget" : "Nearby"}
-                </button>
-              ))}
-            </div>
-          </fieldset>
         </div>
       </div>
 

@@ -255,6 +255,8 @@ export function Dropdown({
   onChange,
   placeholder = "Select…",
   className = "",
+  hideLabel = false,
+  align = "left",
 }: {
   label: string;
   value: string;
@@ -262,6 +264,10 @@ export function Dropdown({
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  /** Keep the label for screen readers only (for inline toolbars). */
+  hideLabel?: boolean;
+  /** Which edge the menu lines up with; use "right" near the right edge. */
+  align?: "left" | "right";
 }) {
   const id = useId();
   const [open, setOpen] = useState(false);
@@ -330,8 +336,15 @@ export function Dropdown({
   };
 
   return (
-    <div ref={ref} className={`relative space-y-1 ${className}`} onKeyDown={onKeyDown}>
-      <span id={`${id}-label`} className="block text-xs text-text-subtle">
+    <div
+      ref={ref}
+      className={`relative ${hideLabel ? "" : "space-y-1"} ${className}`}
+      onKeyDown={onKeyDown}
+    >
+      <span
+        id={`${id}-label`}
+        className={hideLabel ? "sr-only" : "block text-xs text-text-subtle"}
+      >
         {label}
       </span>
       <button
@@ -353,7 +366,7 @@ export function Dropdown({
         <Chevron open={open} className="h-4 w-4 shrink-0 text-text-subtle" />
       </button>
       {open && (
-        <div className={PANEL}>
+        <div className={`${PANEL} ${align === "right" ? "left-auto right-0" : ""}`}>
           {searchable && (
             <input
               autoFocus
