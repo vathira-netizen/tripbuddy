@@ -151,7 +151,7 @@ export function TravellingFrom({
         onClick={() => (open ? close() : setOpen(true))}
         aria-haspopup="dialog"
         aria-expanded={open}
-        className={`group flex max-w-full items-center gap-2.5 rounded-full border bg-white py-1.5 pl-1.5 pr-4 text-left shadow-sm transition hover:border-brand-teal ${
+        className={`group flex h-[42px] max-w-full items-center gap-2.5 rounded-full border bg-white pl-1 pr-4 text-left shadow-sm transition hover:border-brand-teal ${
           open ? "border-brand-coral ring-2 ring-brand-coral/30" : "border-line-input"
         }`}
       >
