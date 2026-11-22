@@ -3,6 +3,10 @@
 Budget-first travel planning platform. Discover budget-fitting destinations,
 find compatible travel buddies nearby, and plan a day-by-day itinerary together.
 
+**Live app:** TripBuddy is already deployed at
+**[https://tripbuddy-two.vercel.app/](https://tripbuddy-two.vercel.app/)**. Sign
+up there to try it without installing anything.
+
 ## What you can do with it
 
 - **Discover** destinations that fit a daily budget, filtered by region, state
