@@ -3,6 +3,116 @@
 Budget-first travel planning platform. Discover budget-fitting destinations,
 find compatible travel buddies nearby, and plan a day-by-day itinerary together.
 
+## What you can do with it
+
+- **Discover** destinations that fit a daily budget, filtered by region, state
+  and interests, with distances from wherever you're travelling from.
+- **Find travel buddies** near you, ranked by how well your travel styles,
+  interests and budgets match.
+- **Plan trips together**: a day-by-day itinerary board, a shared budget with
+  UPI settle-up, a group chat, and an AI assistant that drafts plans.
+
+## Getting started
+
+You can run the whole app on your own computer in about 15 minutes. You need:
+
+- [Git](https://git-scm.com/downloads)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (it runs
+  the database, the backend and the frontend for you)
+- A free [Supabase](https://supabase.com) account (it handles sign-up and
+  login)
+
+### 1. Get the code
+
+```bash
+git clone https://github.com/vathira-netizen/tripbuddy.git
+cd tripbuddy
+```
+
+### 2. Create a Supabase project
+
+1. In Supabase, click **New project** and wait for it to start.
+2. Open **Project Settings → API** and keep that page open. You'll need the
+   **Project URL** and the **anon / publishable key**.
+3. Optional, for local testing: under **Authentication → Sign In / Providers →
+   Email**, turn off **Confirm email**. You can then sign up without checking
+   your inbox.
+
+### 3. Add your settings
+
+Copy the two example files. The copies hold your own keys and are already
+listed in `.gitignore`, so Git will never upload them.
+
+```bash
+cp backend/.env.example backend/.env
+cp frontend/.env.local.example frontend/.env.local
+```
+
+Then edit the copies:
+
+| File | Setting | Value |
+| --- | --- | --- |
+| `backend/.env` | `SUPABASE_URL` | your Supabase Project URL |
+| `backend/.env` | `DJANGO_SECRET_KEY` | any long random string |
+| `backend/.env` | `GROQ_API_KEY` *(optional)* | a free key from [Groq](https://console.groq.com/keys) to turn on the AI assistant; remove the `#` in front of the line |
+| `frontend/.env.local` | `NEXT_PUBLIC_SUPABASE_URL` | your Supabase Project URL |
+| `frontend/.env.local` | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | your Supabase anon / publishable key |
+| `frontend/.env.local` | `NEXT_PUBLIC_API_URL` | `http://localhost:8000` |
+| `frontend/.env.local` | `NEXT_PUBLIC_SITE_URL` | `http://localhost:3000` |
+
+Leave everything else as it is. You don't need to change `DATABASE_URL`,
+because step 4 starts a local database and points the backend at it.
+
+### 4. Start the app
+
+With Docker Desktop running:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.localdb.yml up --build -d
+```
+
+The first run takes a few minutes to download and build everything. When it
+finishes, add the destination catalogue and some sample travellers so the app
+isn't empty:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.localdb.yml exec backend python manage.py seed_destinations
+docker compose -f docker-compose.yml -f docker-compose.localdb.yml exec backend python manage.py seed_pilot
+```
+
+### 5. Open it
+
+Go to **http://localhost:3000**, create an account and complete your profile.
+
+- To stop the app: `docker compose -f docker-compose.yml -f docker-compose.localdb.yml down`
+- To start it again later: run the `up` command from step 4. Your data is kept.
+- If you change `frontend/.env.local`, add `--build` to the `up` command. The
+  frontend reads those settings when it's built.
+
+### Troubleshooting
+
+| Problem | Fix |
+| --- | --- |
+| Pages load but every action fails | Check that `NEXT_PUBLIC_API_URL` is `http://localhost:8000` and the backend is running: http://localhost:8000/api/health/ should say `"ok": true`. |
+| Login fails or keeps sending you back to the login page | Check that `SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_URL` are both your Project URL, then rebuild with `--build`. |
+| "Assistant unavailable" | `GROQ_API_KEY` is missing or wrong in `backend/.env`. Everything else still works without it. |
+| Port 3000 or 8000 is already in use | Stop the other program using it, or change the left-hand port number under `ports:` in `docker-compose.yml`. |
+
+### Running without Docker
+
+You'll need Python 3.13, Node.js 22, and GDAL/GEOS/PROJ installed for
+GeoDjango. Set `DATABASE_URL` in `backend/.env` to a PostGIS database (for
+example your Supabase project's connection string), then:
+
+```bash
+cd backend && pip install -r requirements.txt && python manage.py migrate && python manage.py runserver
+cd frontend && npm install && npm run dev
+```
+
+Browsable API documentation is served at http://localhost:8000/api/docs/.
+Backend tests need a PostGIS database (`cd backend && pytest`); frontend checks
+are `npm run lint` and `npm run build`.
+
 ## Architecture (three free-tier units)
 
 | Unit | Stack | Hosted on |
@@ -150,51 +260,6 @@ error is a genuine problem with the backup.
 
 Backups contain real user data. Keep them outside the repository.
 
-## Local development
-
-Create the env files (never committed):
-
-```bash
-cp backend/.env.example backend/.env        # fill in DATABASE_URL + SUPABASE_* 
-cp frontend/.env.local.example frontend/.env.local
-```
-
-### Backend
-
-GeoDjango needs GDAL/GEOS/PROJ, so run it via Docker (the Dockerfile installs
-them). Locally:
-
-```bash
-cd backend
-python manage.py migrate
-python manage.py runserver          # http://localhost:8000/api/health/
-```
-
-Browsable API documentation (drf-spectacular) is served alongside the API:
-
-| URL | What |
-| --- | --- |
-| `/api/docs/` | Swagger UI |
-| `/api/redoc/` | ReDoc |
-| `/api/schema/` | raw OpenAPI 3 document |
-
-The pages themselves need no token, but the endpoints they describe do — paste a
-Supabase access token into Swagger's **Authorize** box to use "Try it out".
-
-Tests (need a PostGIS database; CI uses `postgis/postgis`):
-
-```bash
-cd backend && pytest
-```
-
-### Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev                          # http://localhost:3000
-```
-
 ## Phase 1 — Authentication & Travel Profiles
 
 - **Auth:** `apps/accounts/authentication.py` verifies the Supabase JWT
@@ -337,3 +402,7 @@ delivery adapter over the same records, not a redesign. Do not scatter
 
 Never expose exact coordinates to other users. Keep `SUPABASE_SERVICE_ROLE_KEY`
 and `SUPABASE_JWT_SECRET` server-side only.
+
+## License
+
+TripBuddy is released under the [MIT License](LICENSE).
