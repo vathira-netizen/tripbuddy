@@ -45,6 +45,15 @@ class Trip(models.Model):
 
     class Meta:
         ordering = ["-start_date", "-created_at"]
+        constraints = [
+            # Last line of defence behind TripSerializer.validate.
+            models.CheckConstraint(
+                condition=models.Q(start_date__isnull=True)
+                | models.Q(end_date__isnull=True)
+                | models.Q(end_date__gte=models.F("start_date")),
+                name="trip_ends_on_or_after_start",
+            ),
+        ]
 
     def __str__(self):
         return self.title

@@ -4,6 +4,10 @@ from apps.budgets.models import BudgetItem
 from apps.common.permissions import is_trip_member
 
 
+# Per line item; generous for a group trip, but catches a slipped extra zero.
+MAX_AMOUNT = 1_000_000
+
+
 class BudgetItemSerializer(serializers.ModelSerializer):
     payer_name = serializers.SerializerMethodField()
     payer_avatar_url = serializers.SerializerMethodField()
@@ -31,6 +35,19 @@ class BudgetItemSerializer(serializers.ModelSerializer):
     def get_payer_avatar_url(self, obj) -> str | None:
         profile = getattr(obj.payer, "profile", None)
         return profile.avatar_url if profile else None
+
+    def validate_amount(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("Enter an amount above ₹0.")
+        if value > MAX_AMOUNT:
+            raise serializers.ValidationError("That's more than ₹10,00,000 — check the amount.")
+        return value
+
+    def validate_label(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("Say what this was for.")
+        return value
 
     def validate(self, attrs):
         trip = attrs.get("trip", getattr(self.instance, "trip", None))

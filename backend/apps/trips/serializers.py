@@ -6,6 +6,7 @@ from apps.accounts.models import Profile
 from apps.budgets.models import BudgetItem
 from apps.common.permissions import is_trip_member
 from apps.common.querysets import accepted_connections
+from apps.common.validators import validate_storage_image_url
 from apps.trips.models import (
     ChatMessage,
     Conversation,
@@ -113,6 +114,25 @@ class TripSerializer(serializers.ModelSerializer):
     def get_is_owner(self, obj) -> bool:
         request = self.context.get("request")
         return bool(request and obj.owner_id == request.user.pk)
+
+    def validate_title(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("Give the trip a name.")
+        return value
+
+    def validate_cover_image_url(self, value):
+        return validate_storage_image_url(value)
+
+    def validate(self, attrs):
+        # On a PATCH only one date may be sent; check it against the stored one.
+        start = attrs.get("start_date", getattr(self.instance, "start_date", None))
+        end = attrs.get("end_date", getattr(self.instance, "end_date", None))
+        if start and end and end < start:
+            raise serializers.ValidationError(
+                {"end_date": "The trip can't end before it starts."}
+            )
+        return attrs
 
 
 class ReorderItemSerializer(serializers.Serializer):

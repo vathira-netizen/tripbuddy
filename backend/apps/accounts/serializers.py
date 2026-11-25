@@ -2,6 +2,7 @@ from django.db.models import Q
 from django.utils import timezone
 from rest_framework import serializers
 
+from apps.common.validators import validate_storage_image_url
 from apps.accounts.badges import compute_badges
 from apps.accounts.geocoding import GeocodingError, geocode_city
 from apps.accounts.models import Profile
@@ -122,6 +123,9 @@ class ProfileSerializer(serializers.ModelSerializer):
         if value is not None and value > 1_000_000:
             raise serializers.ValidationError("Daily budget looks unrealistic.")
         return value
+
+    def validate_avatar_url(self, value):
+        return validate_storage_image_url(value)
 
     def validate_upi_vpa(self, value):
         value = value.strip()

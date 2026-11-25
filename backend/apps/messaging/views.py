@@ -100,6 +100,7 @@ class ConnectionMessagesView(generics.ListCreateAPIView):
     serializer_class = MessageSerializer
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = MessagePagination
+    throttle_scope = "messages"  # sends only; reading/polling is free
 
     def get_connection(self):
         if not hasattr(self, "_connection"):
@@ -363,6 +364,7 @@ class TripMessagesView(generics.ListCreateAPIView):
     serializer_class = TripMessageSerializer
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = MessagePagination
+    throttle_scope = "messages"  # sends only; reading/polling is free
 
     def get_trip(self):
         if not hasattr(self, "_trip"):

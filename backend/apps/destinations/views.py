@@ -156,6 +156,7 @@ class DestinationReviewViewSet(
 
     serializer_class = DestinationReviewSerializer
     permission_classes = [IsAuthenticated]
+    throttle_scope = "reviews"  # writes only, see WriteScopedThrottle
 
     def get_queryset(self):
         qs = DestinationReview.objects.select_related("author__profile")

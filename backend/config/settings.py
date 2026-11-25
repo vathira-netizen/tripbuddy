@@ -180,6 +180,25 @@ REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 20,
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    # Request limits — see apps.common.throttling. The per-user ceiling is an
+    # abuse guard sized above normal use: an open chat polls every 4s and the
+    # navbar every 10s, on top of a page's own parallel calls. The scoped
+    # rates count writes only.
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+        "apps.common.throttling.WriteScopedThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "60/min",
+        "user": "300/min",
+        "messages": "30/min",
+        "join_requests": "10/hour",
+        "reviews": "10/hour",
+        # Every call is a paid LLM request.
+        "ai": "20/hour",
+    },
+    "EXCEPTION_HANDLER": "apps.common.exceptions.exception_handler",
 }
 
 
