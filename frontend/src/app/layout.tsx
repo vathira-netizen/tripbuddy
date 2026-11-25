@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { DM_Sans, DM_Serif_Display } from "next/font/google";
 import Image from "next/image";
-import Link from "next/link";
 import { Toaster } from "sonner";
 import "./globals.css";
 import { Nav } from "@/components/Nav";
+import Link from "next/link";
 
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
