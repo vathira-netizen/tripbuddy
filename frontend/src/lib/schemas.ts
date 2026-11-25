@@ -8,6 +8,10 @@ import {
   LANGUAGES,
 } from "@/lib/vocab";
 
+// Our Content-Security-Policy forbids eval; without this Zod probes for it
+// with `new Function`, which the browser reports as a CSP violation.
+z.config({ jitless: true });
+
 export const emailSchema = z.string().trim().email("Enter a valid email address.");
 
 // Mirrors Supabase's default minimum; the backend never sees the password.

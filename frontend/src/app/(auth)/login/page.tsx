@@ -4,7 +4,7 @@ import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { createClient } from "@/lib/supabase/client";
+import { createClient, setRememberMe } from "@/lib/supabase/client";
 import { loginSchema } from "@/lib/schemas";
 import { Button, FormError, Input } from "@/components/ui";
 
@@ -32,6 +32,7 @@ function LoginForm() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -52,6 +53,8 @@ function LoginForm() {
     }
 
     setLoading(true);
+    // Before signing in, so the first session cookie gets the right lifetime.
+    setRememberMe(remember);
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithPassword(parsed.data);
     setLoading(false);
@@ -92,11 +95,26 @@ function LoginForm() {
           error={errors.password}
           required
         />
-        <div className="text-right text-sm">
+        <div className="flex items-center justify-between gap-3 text-sm">
+          <label className="flex cursor-pointer items-center gap-2 text-text-muted">
+            <input
+              type="checkbox"
+              name="remember"
+              checked={remember}
+              onChange={(e) => setRemember(e.target.checked)}
+              className="h-4 w-4 accent-brand-teal"
+            />
+            Remember me
+          </label>
           <Link href="/reset-password" className="font-bold text-brand-coral-ink">
             Forgot password?
           </Link>
         </div>
+        <p className="-mt-2 text-xs text-text-subtle">
+          {remember
+            ? "You'll stay signed in on this device until you sign out."
+            : "On a shared computer? Leave this off: you'll be signed out after a week without visiting."}
+        </p>
         <Button variant="coral" type="submit" loading={loading}>
           Sign in
         </Button>
