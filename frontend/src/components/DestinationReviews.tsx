@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { avatarTint, initials } from "@/lib/buddies";
 import { DestinationReview, listReviews, submitReview } from "@/lib/discover";
+import { fieldErrors, REVIEW_MAX, reviewSchema } from "@/lib/schemas";
 
 function Star({ filled }: { filled: boolean }) {
   return (
@@ -59,6 +60,7 @@ export default function DestinationReviews({
   const [rating, setRating] = useState(0);
   const [body, setBody] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -73,10 +75,15 @@ export default function DestinationReviews({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (rating === 0) return;
+    const parsed = reviewSchema.safeParse({ rating, body });
+    if (!parsed.success) {
+      setFormError(Object.values(fieldErrors(parsed.error))[0]);
+      return;
+    }
+    setFormError(null);
     setSubmitting(true);
     try {
-      await submitReview(destinationId, rating, body.trim());
+      await submitReview(destinationId, parsed.data.rating, parsed.data.body);
       // Refetch rather than merge client-side: we have no reliable id to
       // dedupe an edit against (author_name isn't guaranteed unique).
       const fresh = await listReviews(destinationId);
@@ -112,10 +119,20 @@ export default function DestinationReviews({
         <textarea
           rows={2}
           value={body}
+          maxLength={REVIEW_MAX}
           onChange={(e) => setBody(e.target.value)}
           placeholder="How was it?"
+          aria-describedby="review-count"
           className="w-full rounded-xl border border-line-input bg-white px-3.5 py-2.5 text-sm shadow-sm outline-none transition focus:border-brand-coral focus:ring-2 focus:ring-brand-coral/30"
         />
+        <div className="flex items-center justify-between text-xs text-text-subtle">
+          <span role="alert" className="text-[#8c2f1d]">
+            {formError}
+          </span>
+          <span id="review-count">
+            {body.length}/{REVIEW_MAX}
+          </span>
+        </div>
         <button
           type="submit"
           disabled={submitting || rating === 0}

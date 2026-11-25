@@ -14,6 +14,14 @@ import {
   updateBudgetItem,
 } from "@/lib/budget";
 import { Input, Select } from "@/components/ui";
+import { ApiError } from "@/lib/api";
+import { budgetItemSchema, fieldErrors, serverFieldErrors } from "@/lib/schemas";
+
+/** The backend's message for a rejected value, if it sent one. */
+function firstServerError(err: unknown): string | undefined {
+  if (!(err instanceof ApiError) || err.status !== 400) return undefined;
+  return Object.values(serverFieldErrors(err.data))[0];
+}
 
 interface Draft {
   category: BudgetCategory;
@@ -46,22 +54,26 @@ export default function BudgetEditor({
 
   async function handleAdd(e: FormEvent) {
     e.preventDefault();
-    if (!draft.label.trim() || !draft.amount) return;
+    const parsed = budgetItemSchema.safeParse({ label: draft.label, amount: draft.amount });
+    if (!parsed.success) {
+      setError(Object.values(fieldErrors(parsed.error))[0]);
+      return;
+    }
 
     setSaving(true);
     setError(null);
     try {
       const created = await createBudgetItem(tripId, {
         category: draft.category,
-        label: draft.label,
-        amount: draft.amount,
+        label: parsed.data.label,
+        amount: parsed.data.amount,
         payer: draft.payer ? Number(draft.payer) : null,
       });
       onItemsChange([...items, created]);
       setDraft(emptyDraft);
       toast.success("Expense logged");
-    } catch {
-      setError("Couldn't add that item. Try again.");
+    } catch (err) {
+      setError(firstServerError(err) ?? "Couldn't add that item. Try again.");
     } finally {
       setSaving(false);
     }
@@ -79,19 +91,24 @@ export default function BudgetEditor({
   }
 
   async function handleSaveEdit(id: number) {
+    const parsed = budgetItemSchema.safeParse({ label: editDraft.label, amount: editDraft.amount });
+    if (!parsed.success) {
+      setError(Object.values(fieldErrors(parsed.error))[0]);
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
       const updated = await updateBudgetItem(id, {
         category: editDraft.category,
-        label: editDraft.label,
-        amount: editDraft.amount,
+        label: parsed.data.label,
+        amount: parsed.data.amount,
         payer: editDraft.payer ? Number(editDraft.payer) : null,
       });
       onItemsChange(items.map((i) => (i.id === id ? updated : i)));
       setEditingId(null);
-    } catch {
-      setError("Couldn't save that change. Try again.");
+    } catch (err) {
+      setError(firstServerError(err) ?? "Couldn't save that change. Try again.");
     } finally {
       setSaving(false);
     }
@@ -290,6 +307,7 @@ export default function BudgetEditor({
             label="Label"
             name="label"
             value={draft.label}
+            maxLength={200}
             onChange={(e) => setDraft((d) => ({ ...d, label: e.target.value }))}
             placeholder="e.g. Flight to Goa"
           />
@@ -315,7 +333,8 @@ export default function BudgetEditor({
             name="amount"
             type="number"
             step="0.01"
-            min="0"
+            min="0.01"
+            max="1000000"
             value={draft.amount}
             onChange={(e) => setDraft((d) => ({ ...d, amount: e.target.value }))}
             placeholder="0.00"

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api, ApiError } from "@/lib/api";
 import { START_CITIES } from "@/lib/discover";
+import { placeQuerySchema } from "@/lib/schemas";
 
 /** Where the traveller is starting from — what Discover measures distances to. */
 export interface Origin {
@@ -118,8 +119,12 @@ export function TravellingFrom({
 
   const search = async (e: React.FormEvent) => {
     e.preventDefault();
-    const q = query.trim();
-    if (!q) return;
+    const checked = placeQuerySchema.safeParse(query);
+    if (!checked.success) {
+      setError(checked.error.issues[0].message);
+      return;
+    }
+    const q = checked.data;
     // Known cities resolve instantly, without a lookup.
     const known = Object.keys(START_CITIES).find((c) => c.toLowerCase() === q.toLowerCase());
     if (known) {
@@ -202,6 +207,7 @@ export function TravellingFrom({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="e.g. Mysuru, Indore, Shillong"
+              maxLength={120}
               aria-label="City or town you're travelling from"
               className="min-w-0 flex-1 rounded-xl border border-line-input bg-white px-3 py-2 text-sm outline-none transition focus:border-brand-coral focus:ring-2 focus:ring-brand-coral/30"
             />

@@ -5,6 +5,7 @@ import { connection } from "next/server";
 import { Toaster } from "sonner";
 import "./globals.css";
 import { Nav } from "@/components/Nav";
+import Link from "next/link";
 
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
@@ -53,7 +54,12 @@ export default async function RootLayout({
               height={24}
               className="h-6 w-auto"
             />
-            <span>Budget-first travel planning · plan · match · explore together</span>
+            <div className="flex flex-col gap-1 sm:items-end">
+              <span>Budget-first travel planning · plan · match · explore together</span>
+              <Link href="/privacy" className="text-xs text-white/70 underline-offset-2 hover:text-white hover:underline">
+                Cookies &amp; privacy
+              </Link>
+            </div>
           </div>
         </footer>
       </body>

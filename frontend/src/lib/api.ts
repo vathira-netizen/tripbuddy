@@ -1,3 +1,5 @@
+import { toast } from "sonner";
+
 import { createClient } from "@/lib/supabase/client";
 
 /**
@@ -80,6 +82,14 @@ export async function apiFetch<T = unknown>(
     : await response.text();
 
   if (!response.ok) {
+    if (response.status === 429) {
+      // A request limit (see the backend's throttling). Say so once, in the
+      // backend's own words, wherever it happened.
+      const detail = (payload as { detail?: string } | undefined)?.detail;
+      toast.error(detail ?? "You're doing that too often. Please try again in a moment.", {
+        id: "rate-limited",
+      });
+    }
     throw new ApiError(response.status, payload);
   }
   return payload as T;

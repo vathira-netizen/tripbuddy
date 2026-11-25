@@ -25,6 +25,7 @@ import {
   reorderItinerary,
   updateItineraryItem,
 } from "@/lib/trips";
+import { fieldErrors, ITINERARY_NOTES_MAX, itineraryItemSchema } from "@/lib/schemas";
 
 /** Split items into one array per day, clamping stray days into the last column. */
 function toColumns(items: ItineraryItem[], dayCount: number): ItineraryItem[][] {
@@ -196,9 +197,9 @@ function DayColumn({
 
   function submitNew(e: React.FormEvent) {
     e.preventDefault();
-    const title = newTitle.trim();
-    if (!title) return;
-    onAdd(day, title);
+    const parsed = itineraryItemSchema.safeParse({ title: newTitle, notes: "" });
+    if (!parsed.success) return; // the + button is disabled until there's a title
+    onAdd(day, parsed.data.title);
     setNewTitle("");
   }
 
@@ -239,6 +240,7 @@ function DayColumn({
           value={newTitle}
           onChange={(e) => setNewTitle(e.target.value)}
           placeholder="+ Add item…"
+          maxLength={200}
           aria-label={`Add an item to ${label}`}
           className="w-full bg-transparent px-1 text-sm text-[#1c2b2b] outline-none placeholder:text-[#a6aca4]"
         />
@@ -276,9 +278,17 @@ function ItemCard({
     opacity: isDragging ? 0.5 : 1,
   };
 
+  const [editError, setEditError] = useState<string | null>(null);
+
   function save(e: React.FormEvent) {
     e.preventDefault();
-    onUpdate(item.id, { title: title.trim() || item.title, notes });
+    const parsed = itineraryItemSchema.safeParse({ title, notes });
+    if (!parsed.success) {
+      setEditError(Object.values(fieldErrors(parsed.error))[0]);
+      return;
+    }
+    setEditError(null);
+    onUpdate(item.id, parsed.data);
     setEditing(false);
   }
 
@@ -294,6 +304,7 @@ function ItemCard({
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             aria-label="Item title"
+            maxLength={200}
             className="w-full rounded-md border border-line-input bg-white px-2 py-1 outline-none focus:border-brand-coral focus:ring-2 focus:ring-brand-coral/30"
           />
           <textarea
@@ -301,9 +312,15 @@ function ItemCard({
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Notes"
             aria-label="Item notes"
+            maxLength={ITINERARY_NOTES_MAX}
             rows={2}
             className="w-full rounded-md border border-line-input bg-white px-2 py-1 text-xs outline-none focus:border-brand-coral focus:ring-2 focus:ring-brand-coral/30"
           />
+          {editError && (
+            <p role="alert" className="text-xs text-[#8c2f1d]">
+              {editError}
+            </p>
+          )}
           <div className="flex gap-2">
             <button
               type="submit"
