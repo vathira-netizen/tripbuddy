@@ -920,3 +920,20 @@ def test_open_to_join_validates_the_deadline(settings_secret):
     ok = owner.post(url, {"join_deadline": deadline}, format="json")
     assert ok.status_code == 200
     assert ok.data["is_open_to_join"] is True and ok.data["join_deadline"] == deadline
+
+
+@pytest.mark.django_db
+def test_itinerary_item_title_required_and_notes_capped(client):
+    trip_id = client.post("/api/trips/", {"title": "Kerala"}, format="json").data["id"]
+
+    def add(**fields):
+        return client.post(
+            "/api/itinerary-items/",
+            {"trip": trip_id, "day_index": 0, "position": 0, **fields},
+            format="json",
+        )
+
+    assert add(title="   ").status_code == 400
+    assert add(title="Backwaters", notes="x" * 2001).status_code == 400
+    ok = add(title="  Backwaters  ", notes="x" * 2000)
+    assert ok.status_code == 201 and ok.data["title"] == "Backwaters"

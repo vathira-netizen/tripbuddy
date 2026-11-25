@@ -10,10 +10,13 @@ import {
 
 export const emailSchema = z.string().trim().email("Enter a valid email address.");
 
-// Mirrors Supabase's default minimum; the backend never sees the password.
+// New passwords only (sign-up, reset). Raise Supabase's own minimum to match
+// under Authentication → Sign In / Providers → Email ("Minimum password
+// length"), or Supabase itself would still accept 8.
 export const passwordSchema = z
   .string()
-  .min(8, "Password must be at least 8 characters.");
+  .min(10, "Use at least 10 characters.")
+  .max(72, "Use at most 72 characters.");
 
 export const loginSchema = z.object({
   email: emailSchema,
@@ -110,3 +113,90 @@ export type Profile = {
   area: { lat: number; lng: number } | null;
   onboarded: boolean;
 };
+
+// --- Shared helpers ------------------------------------------------------------
+
+/** Zod issues → { field: first message }, for a form's inline errors. */
+export function fieldErrors(error: z.ZodError): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const issue of error.issues) {
+    const key = String(issue.path[0] ?? "form");
+    out[key] ??= issue.message;
+  }
+  return out;
+}
+
+/** A DRF 400 body ({ field: ["msg"] }) → { field: "msg" }, so the server's
+ *  verdict shows next to the same field the browser checks. */
+export function serverFieldErrors(data: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (data && typeof data === "object" && !Array.isArray(data)) {
+    for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
+      const msg = Array.isArray(value) ? value[0] : value;
+      if (typeof msg === "string") out[key === "non_field_errors" ? "form" : key] = msg;
+    }
+  }
+  return out;
+}
+
+// These mirror the backend's rules (the backend has the final say); here they
+// give instant feedback before anything is sent.
+
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date.");
+const optionalDate = isoDate.or(z.literal(""));
+
+export const MAX_BUDGET_AMOUNT = 1_000_000;
+
+export const tripFormSchema = z
+  .object({
+    title: z.string().trim().min(1, "Give the trip a name.").max(120, "Keep the name under 120 characters."),
+    start_date: optionalDate,
+    end_date: optionalDate,
+    target_amount: z
+      .string()
+      .refine((v) => v === "" || (Number(v) >= 0 && Number(v) <= 100_000_000), "Enter a budget of ₹0 or more."),
+    join_deadline: optionalDate,
+    today: isoDate,
+  })
+  .superRefine((t, ctx) => {
+    if (t.start_date && t.start_date < t.today) {
+      ctx.addIssue({ code: "custom", path: ["start_date"], message: "Pick today or a later date." });
+    }
+    if (t.start_date && t.end_date && t.end_date < t.start_date) {
+      ctx.addIssue({ code: "custom", path: ["end_date"], message: "The trip can't end before it starts." });
+    }
+    if (t.join_deadline && t.join_deadline < t.today) {
+      ctx.addIssue({ code: "custom", path: ["join_deadline"], message: "The deadline can't be in the past." });
+    }
+    if (t.join_deadline && t.start_date && t.join_deadline > t.start_date) {
+      ctx.addIssue({ code: "custom", path: ["join_deadline"], message: "Set it on or before the start date." });
+    }
+  });
+
+export const budgetItemSchema = z.object({
+  label: z.string().trim().min(1, "Say what this was for.").max(200, "Keep it under 200 characters."),
+  amount: z
+    .string()
+    .trim()
+    .min(1, "Enter an amount.")
+    .refine((v) => Number(v) > 0, "Enter an amount above ₹0.")
+    .refine((v) => Number(v) <= MAX_BUDGET_AMOUNT, "That's more than ₹10,00,000 — check the amount."),
+});
+
+export const REVIEW_MAX = 1000;
+export const reviewSchema = z.object({
+  rating: z.number().int().min(1, "Pick a star rating.").max(5),
+  body: z.string().trim().max(REVIEW_MAX, `Keep reviews under ${REVIEW_MAX} characters.`),
+});
+
+export const ITINERARY_NOTES_MAX = 2000;
+export const itineraryItemSchema = z.object({
+  title: z.string().trim().min(1, "Give the item a name.").max(200, "Keep it under 200 characters."),
+  notes: z.string().max(ITINERARY_NOTES_MAX, `Keep notes under ${ITINERARY_NOTES_MAX} characters.`),
+});
+
+export const placeQuerySchema = z
+  .string()
+  .trim()
+  .min(2, "Type at least 2 letters.")
+  .max(120, "That's too long for a place name.");
