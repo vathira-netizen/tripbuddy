@@ -61,8 +61,9 @@ export async function updateSession(
     pathname.startsWith("/update-password") ||
     pathname.startsWith("/auth");
 
-  // Unauthenticated users may only reach auth routes and the landing page.
-  if (!user && !isAuthRoute && pathname !== "/") {
+  // Unauthenticated users may only reach auth routes, the landing page and
+  // the cookies & privacy page.
+  if (!user && !isAuthRoute && pathname !== "/" && pathname !== "/privacy") {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("next", pathname);

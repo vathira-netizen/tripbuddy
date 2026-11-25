@@ -18,6 +18,8 @@ import {
   Trip,
 } from "@/lib/trips";
 import { FormError, Input, Select } from "@/components/ui";
+import { ApiError } from "@/lib/api";
+import { fieldErrors, serverFieldErrors, tripFormSchema } from "@/lib/schemas";
 import FindTripsToJoin from "@/components/FindTripsToJoin";
 
 /** Lucide `arrow-right`, inlined — matches the `heart`/`map-pin` icons already inlined elsewhere. */
@@ -118,6 +120,7 @@ function TripsInner() {
   const [joinDeadline, setJoinDeadline] = useState("");
   const [showPast, setShowPast] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [friends, setFriends] = useState<Connection[]>([]);
   const [invitees, setInvitees] = useState<Set<string>>(new Set());
   const [tripQuery, setTripQuery] = useState("");
@@ -156,9 +159,21 @@ function TripsInner() {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    if (!title.trim()) return;
-    setSaving(true);
     setError(null);
+    const parsed = tripFormSchema.safeParse({
+      title,
+      start_date: startDate,
+      end_date: endDate,
+      target_amount: budget,
+      join_deadline: openToJoin ? joinDeadline : "",
+      today: todayIso(),
+    });
+    if (!parsed.success) {
+      setFormErrors(fieldErrors(parsed.error));
+      return;
+    }
+    setFormErrors({});
+    setSaving(true);
     try {
       let trip = await createTrip({
         title: title.trim(),
@@ -190,8 +205,10 @@ function TripsInner() {
       setBudget("");
       setOpenToJoin(false);
       setJoinDeadline("");
-    } catch {
-      setError("Couldn't create the trip. Check the dates and try again.");
+    } catch (err) {
+      const fromServer = err instanceof ApiError && err.status === 400 ? serverFieldErrors(err.data) : {};
+      if (Object.keys(fromServer).length) setFormErrors(fromServer);
+      else setError("Couldn't create the trip. Check the dates and try again.");
     } finally {
       setSaving(false);
     }
@@ -239,6 +256,8 @@ function TripsInner() {
         <Input
           label="Title"
           value={title}
+          maxLength={120}
+          error={formErrors.title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Goa long weekend"
           required
@@ -260,6 +279,7 @@ function TripsInner() {
             label="Start"
             type="date"
             value={startDate}
+            error={formErrors.start_date}
             min={todayIso()}
             max={endDate || undefined}
             onChange={(e) => setStartDate(e.target.value)}
@@ -268,6 +288,7 @@ function TripsInner() {
             label="End"
             type="date"
             value={endDate}
+            error={formErrors.end_date}
             min={startDate || undefined}
             onChange={(e) => setEndDate(e.target.value)}
           />
@@ -278,6 +299,7 @@ function TripsInner() {
           min="0"
           step="0.01"
           value={budget}
+          error={formErrors.target_amount}
           onChange={(e) => setBudget(e.target.value)}
           placeholder="e.g. 15000"
         />
@@ -333,6 +355,7 @@ function TripsInner() {
             label="Last date to join (optional)"
             type="date"
             value={joinDeadline}
+            error={formErrors.join_deadline}
             min={todayIso()}
             max={startDate || undefined}
             onChange={(e) => {

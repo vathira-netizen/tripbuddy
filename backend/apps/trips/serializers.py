@@ -17,6 +17,9 @@ from apps.trips.models import (
 )
 
 
+ITINERARY_NOTES_MAX = 2000
+
+
 class ItineraryItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = ItineraryItem
@@ -31,6 +34,19 @@ class ItineraryItemSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
+
+    def validate_title(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("Give the item a name.")
+        return value
+
+    def validate_notes(self, value):
+        if len(value) > ITINERARY_NOTES_MAX:
+            raise serializers.ValidationError(
+                f"Keep notes under {ITINERARY_NOTES_MAX} characters."
+            )
+        return value
 
     def validate(self, attrs):
         trip = attrs.get("trip", getattr(self.instance, "trip", None))

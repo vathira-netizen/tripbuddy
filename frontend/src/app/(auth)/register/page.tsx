@@ -101,6 +101,8 @@ export default function RegisterPage() {
           name="password"
           type="password"
           autoComplete="new-password"
+          placeholder="At least 10 characters"
+          minLength={10}
           value={values.password}
           onChange={(e) => set("password", e.target.value)}
           error={errors.password}
