@@ -258,6 +258,9 @@ class Command(BaseCommand):
                     "area_label": label,
                     "area_point": Point(lng, lat, srid=4326),
                     "onboarded": True,
+                    # Demo accounts stand in for verified travellers so
+                    # buddy search has people to show.
+                    "phone_verified": True,
                 },
             )
             profiles.append(profile)

@@ -6,6 +6,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from apps.common.permissions import RequiresVerifiedPhone
 from apps.matching import services
 from apps.matching.constants import default_radius_km
 from apps.matching.serializers import BuddyCandidateSerializer, BuddyFilterSerializer
@@ -19,7 +20,8 @@ class BuddyViewSet(viewsets.ViewSet):
     narrowed to the search radius.
     """
 
-    permission_classes = [IsAuthenticated]
+    # Searching for buddies needs a confirmed phone number.
+    permission_classes = [IsAuthenticated, RequiresVerifiedPhone]
 
     @extend_schema(
         summary="Ranked travel-buddy candidates",

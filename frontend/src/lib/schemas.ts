@@ -106,6 +106,7 @@ export type Profile = {
   travel_styles: string[];
   upi_vpa: string;
   email_verified: boolean;
+  phone_verified: boolean;
   completeness: { percent: number; missing: string[] };
   age_band: string;
   gender: string;
@@ -204,3 +205,39 @@ export const placeQuerySchema = z
   .trim()
   .min(2, "Type at least 2 letters.")
   .max(120, "That's too long for a place name.");
+
+// --- Phone verification ---------------------------------------------------------
+// India only for now. Indian mobile numbers are 10 digits starting 6-9; people
+// write them with or without +91, 0091, 91 or a leading 0, and with spaces,
+// dashes, dots or brackets.
+
+const INDIAN_MOBILE = /^(?:\+91|0091|91|0)?([6-9]\d{9})$/;
+
+/** `+91` followed by the 10 digits, or `null` if it isn't an Indian mobile number. */
+export function normaliseIndianPhone(input: string): string | null {
+  const compact = input.trim().replace(/[\s\-().]/g, "");
+  const match = INDIAN_MOBILE.exec(compact);
+  return match ? `+91${match[1]}` : null;
+}
+
+export const PHONE_ERROR = "Enter an Indian mobile number: 10 digits, starting 6, 7, 8 or 9.";
+
+/** Parses to the E.164 form Supabase expects, e.g. "+919876543210". */
+export const phoneSchema = z
+  .string()
+  .trim()
+  .min(1, "Enter your mobile number.")
+  .transform((value, ctx) => {
+    const e164 = normaliseIndianPhone(value);
+    if (!e164) {
+      ctx.addIssue({ code: "custom", message: PHONE_ERROR });
+      return z.NEVER;
+    }
+    return e164;
+  });
+
+export const OTP_LENGTH = 6;
+export const otpSchema = z
+  .string()
+  .trim()
+  .regex(new RegExp(`^\\d{${OTP_LENGTH}}$`), `Enter the ${OTP_LENGTH}-digit code from the SMS.`);

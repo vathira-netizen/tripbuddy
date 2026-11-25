@@ -181,6 +181,7 @@ docs/DEPLOY.md   deployment runbook
 | --- | --- |
 | `cd backend && pytest` | the backend suite (needs a PostGIS database) |
 | `cd frontend && npm run lint` | ESLint |
+| `cd frontend && npm test` | Vitest unit tests (phone-number rules) |
 | `cd frontend && npm run e2e` | Playwright: journey, accessibility, performance/security |
 
 The backend suite covers the pure logic hardest — `apps/matching/compatibility.py`
@@ -314,7 +315,8 @@ Backups contain real user data. Keep them outside the repository.
 - **Retrieval** (`apps/matching/services.py`): PostGIS does the narrowing and
   the measuring (`area_point__dwithin` on the GiST index + a `Distance`
   annotation) — there is no Python distance math. Excludes yourself, anyone not
-  onboarded, anyone with no area, and everyone already connected in any state.
+  onboarded or not phone-verified, anyone with no area, and everyone already
+  connected in any state.
 - **API:** `GET /api/buddies/?radius_km=&gender=&age_band=&destination=` returns
   ranked candidates. Default radius 150 km, tunable per environment with
   `MATCH_DEFAULT_RADIUS_KM`.
@@ -330,6 +332,93 @@ Backups contain real user data. Keep them outside the repository.
   filters held in the URL, candidate cards with avatar, approximate area,
   distance bucket, score meter and explanation chips, and an incoming-requests
   panel with accept / decline / block.
+
+## Phone verification
+
+Buddy features need a confirmed Indian mobile number. Browsing destinations and
+planning your own trips do not.
+
+**Flow**
+
+1. Sign up with email and password as before. After onboarding, a skippable
+   "Verify your phone" step follows. It's also on the profile editor
+   (`/profile?edit=1#verify-phone`), which every "Verify your phone" prompt links to.
+2. The number is normalised to E.164 (`+91` followed by 10 digits starting 6–9)
+   and anything else is refused (`phoneSchema` in `frontend/src/lib/schemas.ts`).
+3. `supabase.auth.updateUser({ phone })` sends the SMS code, and
+   `supabase.auth.verifyOtp({ phone, token, type: "phone_change" })` confirms it.
+   The form handles a wrong code, an expired code, a resend button with a 60s
+   countdown, and Supabase rate limits, always in plain words
+   (`frontend/src/lib/phone.ts`).
+4. `supabase.auth.refreshSession()` gets a token carrying the confirmed number,
+   and the form reads `/api/profile/me/` back to confirm the server has caught up.
+
+**What the backend stores.** Only `Profile.phone_verified`, a boolean. The
+number itself lives in Supabase alone. Other travellers see a `phone_verified`
+badge and nothing else.
+
+**How the flag is set** (`apps/accounts/authentication.py`, `apps/accounts/phone.py`):
+
+- **The claim isn't proof.** Supabase's access token has no "phone confirmed"
+  field. Its `phone` claim is the stored number, which a direct phone sign-up
+  can set before confirming.
+- **So the backend asks Supabase.** When a token carries a `phone` the profile
+  isn't yet verified for, the backend checks Supabase's admin API
+  (`GET /auth/v1/admin/users/{id}`, with the service-role key the backend
+  already has) and requires a `phone_confirmed_at`.
+- **Upgrade-only.** A token without the claim never turns the flag off.
+- **Rechecks are rate-limited.** A "not confirmed" or unreachable answer is
+  asked again at most once a minute.
+- **No cache delay.** The authenticator's 30-second user cache is skipped for
+  any token that would upgrade a flag the cached profile lacks. So a newly
+  verified user is recognised on the very next request. In the steady state
+  this costs nothing.
+
+**Gated endpoints.** These return `403 {"detail": "…", "code": "phone_verification_required"}`
+through one permission class, `RequiresVerifiedPhone` in `apps/common/permissions.py`:
+
+| Endpoint | Gated | Still open |
+| --- | --- | --- |
+| `GET /api/buddies/` | searching for buddies | — |
+| `/api/connections/` | `POST` (send a request), `POST …/accept/` | list, decline, block, unblock, cancel |
+| `/api/connections/{id}/messages/` | `POST` (send) | `GET` (read old messages) |
+
+Unverified travellers never appear in anyone's buddy results. Trip chat and
+trip join requests are not gated. The seeded demo buddies count as verified
+(set by `seed_pilot` and by migration `accounts.0008` for an already-seeded
+database).
+
+**Setup checklist** (done once, in the Twilio and Supabase dashboards; no keys go in this repo)
+
+- [ ] **Twilio account.** Create one and upgrade it from trial, since a trial
+  account only texts numbers you've verified with Twilio.
+- [ ] **Twilio Verify service.** Twilio console → Verify → Services → Create.
+  Set the code length to 6. Note the Verify **Service SID**, plus your
+  **Account SID** and **Auth Token**. Verify handles India's DLT sender
+  registration for its own templates.
+- [ ] **India-only sending**, to stop SMS-pumping fraud:
+  - Twilio → Messaging → Settings → Geo permissions: allow **India (+91)** only.
+  - In the Verify service, keep **Fraud Guard** on and limit its geo
+    permissions to India.
+- [ ] **Supabase Phone provider.** Supabase → Authentication → Sign In /
+  Providers → **Phone**:
+  - Enable it and choose **Twilio Verify** as the SMS provider.
+  - Paste the Account SID, Auth Token and Verify Service SID.
+  - Keep **"Enable phone confirmations" ON.** With it off, Supabase accepts
+    numbers without sending a code and this whole feature means nothing.
+- [ ] **OTP settings.** OTP length 6. Set the expiry to 60 seconds where the
+  provider allows it; the app's countdown assumes 60s. If Twilio keeps codes
+  valid longer, the app is simply stricter than needed.
+- [ ] **Test phone numbers.** In the same Phone provider panel, add a few under
+  **Test Phone Numbers and OTPs**, e.g. `919000000001=123456`. Those numbers get
+  no real SMS and always accept that code. Use them for local development and
+  E2E tests, and set the "valid until" date.
+- [ ] **Strict rate limits.** Supabase → Authentication → Rate Limits: keep
+  "SMS messages sent" low (e.g. 30 per hour project-wide) and "token
+  verifications" at the default or lower.
+- [ ] **Backend environment.** `SUPABASE_SERVICE_ROLE_KEY` must be set on the
+  backend host. It's already listed in `render.yaml`; without it no phone can be
+  confirmed and the backend logs an error.
 
 ## Phase 7 prerequisites — messaging
 

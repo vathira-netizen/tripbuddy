@@ -29,6 +29,7 @@ from drf_spectacular.extensions import OpenApiAuthenticationExtension
 from rest_framework import authentication, exceptions
 
 from apps.accounts.models import Profile
+from apps.accounts.phone import phone_confirmed_in_supabase
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,9 @@ User = get_user_model()
 SUPABASE_AUDIENCE = "authenticated"
 
 USER_CACHE_SECONDS = 30
+# After Supabase says a claimed phone isn't confirmed (or can't be reached),
+# don't ask again for this long.
+PHONE_RECHECK_SECONDS = 60
 
 SYMMETRIC_ALGORITHMS = ["HS256"]
 ASYMMETRIC_ALGORITHMS = ["ES256", "RS256"]
@@ -178,14 +182,25 @@ class SupabaseJWTAuthentication(authentication.BaseAuthentication):
         email_verified = bool(
             payload.get("email_verified") or payload.get("user_metadata", {}).get("email_verified")
         )
+        # A non-empty `phone` claim is a reason to check with Supabase, not
+        # proof: see apps.accounts.phone.
+        phone_claimed = bool(payload.get("phone"))
 
         # Every request used to spend a DB round trip (~0.13s on Supabase) just
-        # re-finding the user. Serve it from a short per-process cache instead;
-        # email / verified-flag sync below simply runs when the entry expires.
+        # re-finding the user. Serve it from a short per-process cache instead.
+        # The one exception is a token that would upgrade a verified flag the
+        # cached profile doesn't have yet: that falls through to the database
+        # path once, so someone who has just verified is recognised on their
+        # very next request rather than up to USER_CACHE_SECONDS later. In the
+        # steady state the check is two attribute reads.
         # ponytail: a deactivated user keeps working for up to USER_CACHE_SECONDS.
         cache_key = f"sb-user:{supabase_user_id}"
         cached = cache.get(cache_key)
-        if cached is not None and cached.is_active:
+        if (
+            cached is not None
+            and cached.is_active
+            and not self._upgrade_pending(cached, supabase_user_id, email_verified, phone_claimed)
+        ):
             return cached
 
         profile = (
@@ -201,6 +216,13 @@ class SupabaseJWTAuthentication(authentication.BaseAuthentication):
             if email_verified and not profile.email_verified:
                 profile.email_verified = True
                 profile.save(update_fields=["email_verified"])
+            if (
+                phone_claimed
+                and not profile.phone_verified
+                and self._phone_confirmed(supabase_user_id)
+            ):
+                profile.phone_verified = True
+                profile.save(update_fields=["phone_verified"])
             cache.set(cache_key, profile.user, USER_CACHE_SECONDS)
             return profile.user
 
@@ -218,6 +240,7 @@ class SupabaseJWTAuthentication(authentication.BaseAuthentication):
                     supabase_user_id=supabase_user_id,
                     display_name=email.split("@")[0][:60] if email else "",
                     email_verified=email_verified,
+                    phone_verified=phone_claimed and self._phone_confirmed(supabase_user_id),
                 )
         except IntegrityError:
             # Two concurrent first requests from the same new user; one lost the race.
@@ -231,6 +254,36 @@ class SupabaseJWTAuthentication(authentication.BaseAuthentication):
             return profile.user
 
         return user
+
+    @staticmethod
+    def _upgrade_pending(user, supabase_user_id, email_verified, phone_claimed):
+        """Would this token upgrade a flag the cached profile doesn't have?"""
+        try:
+            profile = user.profile
+        except Profile.DoesNotExist:
+            return True
+        if email_verified and not profile.email_verified:
+            return True
+        return (
+            phone_claimed
+            and not profile.phone_verified
+            and cache.get(_phone_recheck_key(supabase_user_id)) is None
+        )
+
+    @staticmethod
+    def _phone_confirmed(supabase_user_id):
+        """Ask Supabase, at most once a minute per user while the answer is no."""
+        recheck_key = _phone_recheck_key(supabase_user_id)
+        if cache.get(recheck_key) is not None:
+            return False
+        if phone_confirmed_in_supabase(supabase_user_id):
+            return True
+        cache.set(recheck_key, True, PHONE_RECHECK_SECONDS)
+        return False
+
+
+def _phone_recheck_key(supabase_user_id):
+    return f"sb-phone-recheck:{supabase_user_id}"
 
 
 class SupabaseJWTAuthenticationScheme(OpenApiAuthenticationExtension):

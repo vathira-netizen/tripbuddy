@@ -10,7 +10,7 @@ prevents leaking objects in list views, the permission is what stops a guessed
 pk in a detail view.
 """
 
-from rest_framework import permissions
+from rest_framework import exceptions, permissions
 
 from apps.connections.models import Connection
 from apps.trips.models import Trip, TripCollaborator
@@ -70,6 +70,45 @@ class IsConnectionParticipant(permissions.BasePermission):
         if connection is None:
             return False
         return request.user.pk in (connection.requester_id, connection.addressee_id)
+
+
+PHONE_VERIFICATION_REQUIRED = "phone_verification_required"
+
+
+class PhoneVerificationRequired(exceptions.PermissionDenied):
+    """403 whose body carries a stable ``code`` the frontend can detect."""
+
+    def __init__(self):
+        super().__init__(
+            {
+                "detail": "Verify your phone number to use buddy features.",
+                "code": PHONE_VERIFICATION_REQUIRED,
+            }
+        )
+
+
+class RequiresVerifiedPhone(permissions.BasePermission):
+    """Buddy features are only for travellers with a confirmed phone number.
+
+    A view narrows which requests are gated with ``phone_verified_for``: a set
+    of viewset action names and/or HTTP methods. Without it, every request to
+    the view is gated. List it after ``IsAuthenticated`` so a signed-out
+    request still gets a 401.
+    """
+
+    def has_permission(self, request, view):
+        gated = getattr(view, "phone_verified_for", None)
+        if gated is not None and not (
+            getattr(view, "action", None) in gated or request.method in gated
+        ):
+            return True
+        user = request.user
+        if not (user and user.is_authenticated):
+            return True  # IsAuthenticated answers this one.
+        profile = getattr(user, "profile", None)
+        if profile is None or not profile.phone_verified:
+            raise PhoneVerificationRequired()
+        return True
 
 
 class IsReadOnly(permissions.BasePermission):

@@ -59,6 +59,7 @@ def make_traveller(username):
         area_label=f"{username.title()} City",
         area_point=Point(BLR[1], BLR[0], srid=4326),
         onboarded=True,
+        phone_verified=True,
     )
     return user, profile
 

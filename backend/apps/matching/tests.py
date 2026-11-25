@@ -372,6 +372,7 @@ def make_traveller(
     age_band="21-23",
     gender="female",
     onboarded=True,
+    phone_verified=True,
 ):
     user = User.objects.create_user(username=username)
     sub = uuid.uuid4()
@@ -388,6 +389,7 @@ def make_traveller(
         area_label=f"{username.title()} City",
         area_point=point,
         onboarded=onboarded,
+        phone_verified=phone_verified,
     )
     return user, profile
 

@@ -83,7 +83,8 @@ def saved_destination_ids(user_ids):
 def candidate_profiles(user, radius_km, *, gender=None, age_band=None, destination_id=None):
     """Profiles inside the radius, annotated with PostGIS distance.
 
-    Excludes the user themselves, anyone not onboarded, anyone without an
+    Excludes the user themselves, anyone not onboarded or not phone-verified,
+    anyone without an
     ``area_point`` (they cannot be placed, so they cannot be ranked honestly),
     and every user in ``excluded_user_ids``.
     """
@@ -96,6 +97,8 @@ def candidate_profiles(user, radius_km, *, gender=None, age_band=None, destinati
     qs = (
         Profile.objects.select_related("user")
         .filter(onboarded=True)
+        # Unverified accounts never appear as buddies.
+        .filter(phone_verified=True)
         .exclude(user=user)
         .exclude(area_point__isnull=True)
         .filter(area_point__dwithin=(me.area_point, D(km=radius_km)))

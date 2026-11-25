@@ -21,6 +21,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.common.permissions import RequiresVerifiedPhone
 from apps.common.querysets import is_authenticated, visible_trips
 from apps.connections.models import Connection
 from apps.messaging.models import (
@@ -98,7 +99,9 @@ class ConnectionMessagesView(generics.ListCreateAPIView):
     """
 
     serializer_class = MessageSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RequiresVerifiedPhone]
+    # Sending needs a confirmed phone number; reading old messages doesn't.
+    phone_verified_for = {"POST"}
     pagination_class = MessagePagination
     throttle_scope = "messages"  # sends only; reading/polling is free
 

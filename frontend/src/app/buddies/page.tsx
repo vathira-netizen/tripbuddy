@@ -6,6 +6,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import type { ChangeEvent, ReactNode } from "react";
 
 import { api, ApiError } from "@/lib/api";
+import { needsPhoneVerification } from "@/lib/phone";
+import { PhonePrompt } from "@/components/PhonePrompt";
 import {
   BuddyCandidate,
   DEFAULT_RADIUS_KM,
@@ -69,6 +71,7 @@ function BuddiesInner() {
   const [myProfile, setMyProfile] = useState<Profile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [needsArea, setNeedsArea] = useState(false);
+  const [needsPhone, setNeedsPhone] = useState(false);
   const [loading, setLoading] = useState(true);
   // Bumped after a request is answered so the candidate list refetches — an
   // accepted traveller is no longer a candidate.
@@ -110,6 +113,7 @@ function BuddiesInner() {
       setLoading(true);
       setError(null);
       setNeedsArea(false);
+      setNeedsPhone(false);
       try {
         const page = await listBuddies({
           radiusKm,
@@ -122,7 +126,9 @@ function BuddiesInner() {
       } catch (err) {
         if (cancelled) return;
         setCandidates([]);
-        if (err instanceof ApiError && err.status === 409) {
+        if (needsPhoneVerification(err)) {
+          setNeedsPhone(true);
+        } else if (err instanceof ApiError && err.status === 409) {
           // The user has not set a city, so there is no origin to search from.
           setNeedsArea(true);
         } else {
@@ -231,6 +237,8 @@ function BuddiesInner() {
             )}
           </section>
 
+          {needsPhone && <PhonePrompt />}
+
           {needsArea && (
             <p className="rounded-xl bg-brand-coral-tint px-4 py-3 text-sm text-brand-coral-ink">
               Add your city in{" "}
@@ -249,7 +257,7 @@ function BuddiesInner() {
             </p>
           )}
 
-          {!loading && !error && !needsArea && candidates.length === 0 && (
+          {!loading && !error && !needsArea && !needsPhone && candidates.length === 0 && (
             <div className="rounded-xl border border-dashed border-line-input p-8 text-center">
               <p className="font-medium text-brand-teal">No travellers match yet.</p>
               <p className="mt-1 text-sm text-text-subtle">

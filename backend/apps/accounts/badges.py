@@ -19,6 +19,8 @@ def compute_badges(profile) -> list[str]:
     badges = []
     if profile.email_verified:
         badges.append("email_verified")
+    if profile.phone_verified:
+        badges.append("phone_verified")
     if profile.onboarded and profile.bio and profile.travel_styles:
         badges.append("profile_complete")
 

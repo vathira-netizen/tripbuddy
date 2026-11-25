@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { toast } from "sonner";
 
 import { ApiError } from "@/lib/api";
+import { needsPhoneVerification } from "@/lib/phone";
 import {
   formatMessageTime,
   MAX_BODY_LENGTH,
@@ -11,6 +12,7 @@ import {
   notifyUnreadChanged,
 } from "@/lib/messages";
 import { EmojiPicker } from "@/components/EmojiPicker";
+import { toastPhoneRequired } from "@/components/PhonePrompt";
 
 /** Where a thread's messages come from — a 1:1 connection or a trip group. */
 export interface ChatSource {
@@ -232,7 +234,11 @@ export function ChatPanel({
       setDraft("");
       upsert(message);
     } catch (err) {
-      if (err instanceof ApiError) {
+      if (needsPhoneVerification(err)) {
+        // Old messages stay readable; sending needs a verified phone.
+        setError("Verify your phone number to send messages.");
+        toastPhoneRequired();
+      } else if (err instanceof ApiError) {
         const data = err.data as { body?: string[]; detail?: string } | undefined;
         setError(data?.body?.[0] ?? data?.detail ?? "Message not sent.");
       } else {

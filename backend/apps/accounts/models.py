@@ -41,6 +41,11 @@ class Profile(models.Model):
     # Synced opportunistically from the Supabase JWT's `email_verified` claim on
     # each authenticated request — see apps.accounts.authentication.
     email_verified = models.BooleanField(default=False)
+    # True once Supabase has confirmed a phone number for this user by SMS code.
+    # Only the flag lives here; the number itself stays in Supabase. Buddy
+    # features (search, requests, sending messages) require it. Upgrade-only,
+    # see apps.accounts.authentication.
+    phone_verified = models.BooleanField(default=False)
     age_band = models.CharField(max_length=10, choices=AgeBand.choices, blank=True)
     gender = models.CharField(max_length=20, choices=Gender.choices, blank=True)
     languages = ArrayField(models.CharField(max_length=32), default=list, blank=True)

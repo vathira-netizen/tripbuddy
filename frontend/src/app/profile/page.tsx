@@ -9,6 +9,7 @@ import { profileEditSchema, type Profile } from "@/lib/schemas";
 import { TRAVEL_STYLES } from "@/lib/vocab";
 import { Button, FormError, FormSuccess, Input, TagPicker } from "@/components/ui";
 import AvatarUpload from "@/components/AvatarUpload";
+import PhoneVerify from "@/components/PhoneVerify";
 import ProfileCompletenessMeter from "@/components/ProfileCompletenessMeter";
 import ProfileView from "@/components/ProfileView";
 import {
@@ -45,6 +46,14 @@ function ProfileInner() {
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // "Verify phone" prompts link to #verify-phone; the section only exists once
+  // the profile has loaded, so scroll to it then.
+  const profileLoaded = profile !== null;
+  useEffect(() => {
+    if (!editing || !profileLoaded || window.location.hash !== "#verify-phone") return;
+    document.getElementById("verify-phone")?.scrollIntoView({ block: "center" });
+  }, [editing, profileLoaded]);
 
   useEffect(() => {
     api
@@ -193,6 +202,25 @@ function ProfileInner() {
             upi_vpa: upiVpa,
           }}
         />
+        <section
+          id="verify-phone"
+          aria-labelledby="verify-phone-heading"
+          className="scroll-mt-24 space-y-3 border-t border-line pt-5"
+        >
+          <div>
+            <h2 id="verify-phone-heading" className="text-sm font-bold text-brand-teal">
+              Phone verification
+            </h2>
+            <p className="mt-1 text-xs text-text-subtle">
+              Needed to find buddies, send requests and message. Your number is never shown
+              to other travellers.
+            </p>
+          </div>
+          <PhoneVerify
+            verified={profile.phone_verified}
+            onVerified={() => setProfile((p) => (p ? { ...p, phone_verified: true } : p))}
+          />
+        </section>
       </aside>
 
       <form

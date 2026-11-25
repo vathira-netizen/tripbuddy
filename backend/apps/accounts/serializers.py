@@ -63,6 +63,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             "travel_styles",
             "upi_vpa",
             "email_verified",
+            "phone_verified",
             "completeness",
             "age_band",
             "gender",
@@ -79,6 +80,7 @@ class ProfileSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             "email_verified",
+            "phone_verified",
             "completeness",
             "supabase_user_id",
             "email",

@@ -31,7 +31,8 @@ def _settings(settings):
 def traveller(name):
     user = User.objects.create_user(username=name)
     profile = Profile.objects.create(
-        user=user, supabase_user_id=uuid.uuid4(), display_name=name.title(), onboarded=True
+        user=user, supabase_user_id=uuid.uuid4(), display_name=name.title(), onboarded=True,
+        phone_verified=True,
     )
     now = datetime.now(tz=timezone.utc)
     token = jwt.encode(

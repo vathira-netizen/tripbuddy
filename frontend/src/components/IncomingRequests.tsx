@@ -11,6 +11,8 @@ import {
 } from "@/lib/buddies";
 import { ApiError } from "@/lib/api";
 import { Avatar } from "@/components/Avatar";
+import { needsPhoneVerification } from "@/lib/phone";
+import { toastPhoneRequired } from "@/components/PhonePrompt";
 
 /**
  * Pending buddy requests addressed to the current user.
@@ -60,7 +62,9 @@ export function IncomingRequests({ onAnswered }: { onAnswered?: () => void }) {
       setRequests((current) => current.filter((r) => r.id !== connection.id));
       onAnswered?.();
     } catch (err) {
-      if (err instanceof ApiError && err.status === 400) {
+      if (needsPhoneVerification(err)) {
+        toastPhoneRequired();
+      } else if (err instanceof ApiError && err.status === 400) {
         // "Already accepted/declined" — e.g. the first attempt did land and only
         // its response was lost. The row is stale either way; drop it.
         setRequests((current) => current.filter((r) => r.id !== connection.id));

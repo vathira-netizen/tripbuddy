@@ -17,6 +17,8 @@ import {
 } from "@/lib/buddies";
 import { Avatar } from "@/components/Avatar";
 import { FormError } from "@/components/ui";
+import { needsPhoneVerification } from "@/lib/phone";
+import { PhonePrompt, toastPhoneRequired } from "@/components/PhonePrompt";
 
 type Tab = "received" | "sent";
 
@@ -28,14 +30,16 @@ export default function ConnectionsPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<number | null>(null);
   const [suggestions, setSuggestions] = useState<BuddyCandidate[]>([]);
+  const [needsPhone, setNeedsPhone] = useState(false);
 
   // "People you may know": the top compatibility matches who aren't already
   // connected (the buddies API excludes those). Best-effort — a missing home
-  // area or a network blip just hides the section.
+  // area or a network blip just hides the section. An unverified phone shows
+  // the verify prompt in its place.
   useEffect(() => {
     listBuddies({ radiusKm: 500 })
       .then((page) => setSuggestions(page.results.slice(0, 5)))
-      .catch(() => {});
+      .catch((err) => setNeedsPhone(needsPhoneVerification(err)));
   }, []);
 
   async function addSuggestion(c: BuddyCandidate) {
@@ -44,8 +48,9 @@ export default function ConnectionsPage() {
       setSuggestions((cur) => cur.filter((x) => x.supabase_user_id !== c.supabase_user_id));
       setSent((cur) => [created, ...cur]);
       toast.success(`Request sent to ${c.display_name}`);
-    } catch {
-      toast.error("Couldn't send that request. Try again.");
+    } catch (err) {
+      if (needsPhoneVerification(err)) toastPhoneRequired();
+      else toast.error("Couldn't send that request. Try again.");
     }
   }
 
@@ -85,8 +90,9 @@ export default function ConnectionsPage() {
       await action(connection.id);
       setReceived((current) => current.filter((r) => r.id !== connection.id));
       toast.success(successMessage);
-    } catch {
-      toast.error("That didn't go through. Try again.");
+    } catch (err) {
+      if (needsPhoneVerification(err)) toastPhoneRequired();
+      else toast.error("That didn't go through. Try again.");
     } finally {
       setBusy(null);
     }
@@ -160,6 +166,12 @@ export default function ConnectionsPage() {
         />
       ) : (
         <SentList requests={sent} busy={busy} onCancel={cancel} />
+      )}
+
+      {needsPhone && (
+        <div className="mt-10">
+          <PhonePrompt />
+        </div>
       )}
 
       {suggestions.length > 0 && (

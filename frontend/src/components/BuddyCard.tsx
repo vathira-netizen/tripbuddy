@@ -12,6 +12,8 @@ import {
   titleCase,
 } from "@/lib/buddies";
 import TravellerProfileModal from "@/components/TravellerProfileModal";
+import { needsPhoneVerification } from "@/lib/phone";
+import { toastPhoneRequired } from "@/components/PhonePrompt";
 
 /** Lucide `map-pin`, inlined — matches the `heart` icon already inlined on /discover. */
 function MapPin({ className = "" }: { className?: string }) {
@@ -70,7 +72,9 @@ export function BuddyCard({
       onConnected?.(candidate);
     } catch (err) {
       setState("idle");
-      if (err instanceof ApiError) {
+      if (needsPhoneVerification(err)) {
+        toastPhoneRequired();
+      } else if (err instanceof ApiError) {
         const data = err.data as { detail?: string } | undefined;
         // 409 means a connection already exists — the detail explains which.
         setError(data?.detail ?? "Could not send the request.");

@@ -26,7 +26,7 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from apps.common.permissions import IsConnectionParticipant
+from apps.common.permissions import IsConnectionParticipant, RequiresVerifiedPhone
 from apps.common.querysets import is_authenticated, visible_connections
 from apps.connections.models import Connection
 from apps.connections.serializers import (
@@ -75,7 +75,10 @@ class ConnectionViewSet(
     """
 
     serializer_class = ConnectionSerializer
-    permission_classes = [IsAuthenticated, IsConnectionParticipant]
+    permission_classes = [IsAuthenticated, RequiresVerifiedPhone, IsConnectionParticipant]
+    # Sending and accepting a request need a confirmed phone number.
+    # Declining, blocking and unblocking stay open: they are safety actions.
+    phone_verified_for = {"create", "accept"}
 
     def get_queryset(self):
         if not is_authenticated(self.request.user):

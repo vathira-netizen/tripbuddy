@@ -52,6 +52,7 @@ def make_traveller(username):
         supabase_user_id=uuid.uuid4(),
         display_name=username.title(),
         onboarded=True,
+        phone_verified=True,
     )
     return user, profile
 
