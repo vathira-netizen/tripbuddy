@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { DM_Sans, DM_Serif_Display } from "next/font/google";
 import Image from "next/image";
+import { connection } from "next/server";
 import { Toaster } from "sonner";
 import "./globals.css";
 import { Nav } from "@/components/Nav";
@@ -25,11 +26,15 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // The CSP nonce (proxy.ts) changes on every request, so pages can't be
+  // pre-built: render each one per request so Next.js can stamp the nonce
+  // on its scripts.
+  await connection();
   return (
     <html
       lang="en"

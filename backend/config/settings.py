@@ -210,6 +210,34 @@ SPECTACULAR_SETTINGS = {
 }
 
 
+# Cookies and HTTPS (production only).
+#
+# The API itself is cookie-free — every call carries a Supabase bearer token —
+# so these protect the session and CSRF cookies of /admin. Render terminates
+# TLS and forwards plain HTTP, hence SECURE_PROXY_SSL_HEADER; no
+# SECURE_SSL_REDIRECT, because Render's own health check calls in over HTTP.
+
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 60 * 60 * 24 * 365
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SESSION_COOKIE_HTTPONLY = True
+CSRF_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SAMESITE = "Lax"
+SESSION_COOKIE_AGE = 60 * 60 * 8  # an admin session lasts a working day
+X_FRAME_OPTIONS = "DENY"
+# The admin login form posts back to the API host itself.
+# A leading-dot host (".example.com") means any subdomain: "https://*.example.com".
+CSRF_TRUSTED_ORIGINS = [
+    "https://" + ("*" + host if host.startswith(".") else host)
+    for host in ALLOWED_HOSTS
+    if host not in ("*", "localhost", "127.0.0.1")
+]
+
+
 # django-cors-headers
 # https://github.com/adamchainz/django-cors-headers
 
