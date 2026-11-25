@@ -406,13 +406,13 @@ def test_only_owner_can_share(settings_secret):
 
 
 @pytest.mark.django_db
-def test_cover_image_url_is_plain_patch_writable(client):
+def test_cover_image_url_is_plain_patch_writable(client, settings):
+    settings.SUPABASE_URL = "https://proj.supabase.co"
+    cover = "https://proj.supabase.co/storage/v1/object/public/trip-covers/c.jpg"
     trip_id = client.post("/api/trips/", {"title": "Goa run"}, format="json").data["id"]
-    resp = client.patch(
-        f"/api/trips/{trip_id}/", {"cover_image_url": "https://example.com/c.jpg"}, format="json"
-    )
+    resp = client.patch(f"/api/trips/{trip_id}/", {"cover_image_url": cover}, format="json")
     assert resp.status_code == 200
-    assert resp.data["cover_image_url"] == "https://example.com/c.jpg"
+    assert resp.data["cover_image_url"] == cover
 
 
 @pytest.mark.django_db

@@ -15,7 +15,7 @@ class BudgetItem(models.Model):
     )
     category = models.CharField(max_length=20, choices=Category.choices)
     label = models.CharField(max_length=200)
-    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)  # > 0, see Meta
     # Who actually paid — drives the paid-vs-owed split in Phase 3.
     payer = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -29,6 +29,11 @@ class BudgetItem(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(amount__gt=0), name="budget_item_amount_positive"
+            ),
+        ]
         ordering = ["category", "id"]
         indexes = [
             models.Index(fields=["trip", "category"]),

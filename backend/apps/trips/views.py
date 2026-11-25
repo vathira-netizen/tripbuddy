@@ -75,6 +75,8 @@ class TripViewSet(
     serializer_class = TripSerializer
     permission_classes = [IsAuthenticated, IsTripMember]
 
+    # Request-limit scope, set per action: only the AI ones are limited.
+    throttle_scope = None
     # Owner-only actions. Everything else is open to any trip member.
     OWNER_ACTIONS = {"destroy", "invite", "share", "unshare", "open_to_join", "close_to_join"}
 
@@ -245,7 +247,7 @@ class TripViewSet(
         summary="Draft an itinerary with the AI generator (not persisted)",
         request=GenerateParamsSerializer,
     )
-    @action(detail=True, methods=["post"], url_path="generate-itinerary")
+    @action(detail=True, methods=["post"], url_path="generate-itinerary", throttle_scope="ai")
     def generate_itinerary(self, request, pk=None):
         """Owner/collaborators only. Returns a budget-validated DRAFT.
 
@@ -273,7 +275,7 @@ class TripViewSet(
         summary="Ask the trip assistant a question about this trip and budget",
         request=AssistantQuestionSerializer,
     )
-    @action(detail=True, methods=["post"], url_path="ask")
+    @action(detail=True, methods=["post"], url_path="ask", throttle_scope="ai")
     def ask(self, request, pk=None):
         """Owner/collaborators only. Any plan in the reply is budget-checked."""
         trip = self.get_object()
@@ -328,7 +330,8 @@ class TripViewSet(
                         notes=item.get("notes", ""),
                     )
                 )
-                if add_to_budget and item["est_cost"]:
+                # Only real costs become budget lines (amounts must be > 0).
+                if add_to_budget and item["est_cost"] and item["est_cost"] > 0:
                     new_budget_items.append(
                         BudgetItem(
                             trip=trip,
@@ -455,6 +458,10 @@ class TripJoinRequestViewSet(
     serializer_class = TripJoinRequestSerializer
     permission_classes = [IsAuthenticated]
 
+    @property
+    def throttle_scope(self):
+        return "join_requests" if getattr(self, "action", None) == "create" else None
+
     def get_queryset(self):
         user = self.request.user
         return TripJoinRequest.objects.filter(
@@ -540,6 +547,10 @@ class ConversationViewSet(
     """
 
     permission_classes = [IsAuthenticated]
+
+    @property
+    def throttle_scope(self):
+        return "ai" if getattr(self, "action", None) in ("create", "messages") else None
 
     def get_queryset(self):
         return (

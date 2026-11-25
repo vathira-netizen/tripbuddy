@@ -60,6 +60,9 @@ class DestinationSerializer(serializers.ModelSerializer):
         return getattr(obj, "review_count", 0) or 0
 
 
+REVIEW_MAX_LENGTH = 1000
+
+
 class DestinationReviewSerializer(serializers.ModelSerializer):
     """A traveller's rating/review — open to anyone onboarded (see models.py).
 
@@ -85,6 +88,14 @@ class DestinationReviewSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
+
+    def validate_body(self, value):
+        value = value.strip()
+        if len(value) > REVIEW_MAX_LENGTH:
+            raise serializers.ValidationError(
+                f"Keep reviews under {REVIEW_MAX_LENGTH} characters."
+            )
+        return value
 
     def get_author_name(self, obj) -> str:
         profile = getattr(obj.author, "profile", None)

@@ -253,6 +253,7 @@ def test_patch_rejects_malformed_upi_vpa(settings_secret, client):
 
 @pytest.mark.django_db
 def test_completeness_reflects_filled_fields(settings_secret, client):
+    settings_secret.SUPABASE_URL = "https://proj.supabase.co"
     c = auth(client, make_token())
     empty = c.get("/api/profile/me/").data["completeness"]
     assert empty["percent"] < 100
@@ -261,7 +262,7 @@ def test_completeness_reflects_filled_fields(settings_secret, client):
     c.patch(
         "/api/profile/me/",
         {
-            "avatar_url": "https://example.com/a.jpg",
+            "avatar_url": "https://proj.supabase.co/storage/v1/object/public/avatars/a.jpg",
             "bio": "I love trains.",
             "travel_styles": ["backpacking"],
             "languages": ["english"],
