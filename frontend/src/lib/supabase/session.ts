@@ -1,12 +1,26 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
+import { authCookieOptions, REMEMBER_COOKIE } from "@/lib/supabase/cookie-policy";
+
 /**
  * Refreshes the Supabase auth session on every request and guards private
  * routes. Kept in its own file so `src/middleware.ts` stays a thin entry point.
  */
-export async function updateSession(request: NextRequest) {
-  let response = NextResponse.next({ request });
+export async function updateSession(
+  request: NextRequest,
+  /** Extra request headers for the render (the CSP nonce, see proxy.ts). */
+  extraHeaders: Record<string, string> = {},
+) {
+  // Built fresh each time: refreshed cookies are written onto `request`, and
+  // the render must see them along with the extra headers.
+  const forwarded = () => {
+    const headers = new Headers(request.headers);
+    for (const [k, v] of Object.entries(extraHeaders)) headers.set(k, v);
+    return NextResponse.next({ request: { headers } });
+  };
+  const remembered = request.cookies.get(REMEMBER_COOKIE)?.value === "1";
+  let response = forwarded();
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -20,9 +34,9 @@ export async function updateSession(request: NextRequest) {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value),
           );
-          response = NextResponse.next({ request });
+          response = forwarded();
           cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options),
+            response.cookies.set(name, value, authCookieOptions(options, remembered)),
           );
         },
       },
