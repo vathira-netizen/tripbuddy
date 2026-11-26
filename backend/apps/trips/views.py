@@ -1,4 +1,5 @@
 import csv
+from collections.abc import Mapping
 
 from django.db import transaction
 from django.db.models import F, Q
@@ -16,6 +17,7 @@ from apps.budgets import services
 from apps.budgets.models import BudgetItem
 from apps.common.permissions import IsTripMember, IsTripOwner, is_trip_member
 from apps.common.querysets import visible_itinerary_items, visible_trips
+from apps.common.validators import parse_id
 from apps.trips import ai_service
 from apps.trips.llm import ItineraryParseError
 from apps.trips.models import (
@@ -223,7 +225,7 @@ class TripViewSet(
         qs = joinable_trips().select_related("owner__profile")
         destination_id = request.query_params.get("destination")
         if destination_id:
-            qs = qs.filter(destination_id=destination_id)
+            qs = qs.filter(destination_id=parse_id(destination_id, "destination"))
         # ?q= searches trip title, destination, state and owner name — the
         # "Find trips to join" search on /trips. Trips you're already on are
         # left out there, since you can't ask to join them.
@@ -304,7 +306,7 @@ class TripViewSet(
     def apply_itinerary(self, request, pk=None):
         """Owner/collaborators only. Appends the draft's items to the board."""
         trip = self.get_object()
-        serializer = ApplyItinerarySerializer(data=request.data)
+        serializer = ApplyItinerarySerializer(data=request.data, context={"trip": trip})
         serializer.is_valid(raise_exception=True)
         days = serializer.validated_data["days"]
         add_to_budget = serializer.validated_data["add_to_budget"]
@@ -437,7 +439,7 @@ class ItineraryItemViewSet(viewsets.ModelViewSet):
         qs = visible_itinerary_items(self.request.user).select_related("trip")
         trip_id = self.request.query_params.get("trip")
         if trip_id:
-            qs = qs.filter(trip_id=trip_id)
+            qs = qs.filter(trip_id=parse_id(trip_id, "trip"))
         return qs
 
 
@@ -475,7 +477,11 @@ class TripJoinRequestViewSet(
                     "apps.connections handles a repeat connection request.",
     )
     def create(self, request, *args, **kwargs):
+        if not isinstance(request.data, Mapping):
+            raise ValidationError({"trip": "Send the trip id."})
         trip_id = request.data.get("trip")
+        if trip_id is not None:
+            trip_id = parse_id(trip_id, "trip")
         trip = Trip.objects.filter(pk=trip_id, is_open_to_join=True).first()
         if trip is None:
             raise ValidationError({"trip": "No open-to-join trip with that id."})

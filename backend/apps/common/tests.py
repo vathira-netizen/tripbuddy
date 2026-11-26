@@ -101,7 +101,7 @@ def test_object_permissions(users):
     item = ItineraryItem.objects.create(trip=trip, title="x")
     conn = Connection.objects.create(requester=a, addressee=b)
 
-    req = lambda u: SimpleNamespace(user=u)
+    req = lambda u: SimpleNamespace(user=u, method="PATCH")
 
     assert IsTripMember().has_object_permission(req(a), None, trip)
     assert IsTripMember().has_object_permission(req(b), None, item)

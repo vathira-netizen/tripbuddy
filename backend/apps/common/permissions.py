@@ -11,6 +11,7 @@ pk in a detail view.
 """
 
 from rest_framework import permissions
+from rest_framework.exceptions import PermissionDenied
 
 from apps.connections.models import Connection
 from apps.trips.models import Trip, TripCollaborator
@@ -35,7 +36,7 @@ class IsSelfProfile(permissions.BasePermission):
 
 
 class IsTripMember(permissions.BasePermission):
-    """Owner or collaborator of the trip may read and write it.
+    """Any member of the trip may read it; the owner and editors may change it.
 
     Accepts the Trip itself or anything with a ``trip`` FK (itinerary items,
     budget items), so Phases 3/5/6 can reuse it unchanged.
@@ -45,9 +46,12 @@ class IsTripMember(permissions.BasePermission):
 
     def has_object_permission(self, request, view, obj):
         trip = obj if isinstance(obj, Trip) else getattr(obj, "trip", None)
-        if trip is None:
+        if trip is None or not is_trip_member(request.user, trip):
             return False
-        return is_trip_member(request.user, trip)
+        if request.method in permissions.SAFE_METHODS or can_edit_trip(request.user, trip):
+            return True
+        self.message = VIEW_ONLY_MESSAGE
+        return False
 
 
 class IsTripOwner(permissions.BasePermission):
@@ -77,6 +81,26 @@ class IsReadOnly(permissions.BasePermission):
 
     def has_permission(self, request, view):
         return request.method in permissions.SAFE_METHODS
+
+
+VIEW_ONLY_MESSAGE = "You have view-only access to this trip."
+
+
+def can_edit_trip(user, trip):
+    """The owner, or a collaborator whose role isn't viewer."""
+    if trip.owner_id == user.pk:
+        return True
+    return (
+        TripCollaborator.objects.filter(trip=trip, user=user)
+        .exclude(role=TripCollaborator.Role.VIEWER)
+        .exists()
+    )
+
+
+def require_trip_editor(user, trip):
+    """403 for a member who may only view. Call after the membership check."""
+    if not can_edit_trip(user, trip):
+        raise PermissionDenied(VIEW_ONLY_MESSAGE)
 
 
 def is_trip_member(user, trip):

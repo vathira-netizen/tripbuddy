@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { createClient, setRememberMe } from "@/lib/supabase/client";
+import { safeNextPath } from "@/lib/safe-next";
 import { loginSchema } from "@/lib/schemas";
 import { Button, FormError, Input } from "@/components/ui";
 
@@ -28,7 +29,7 @@ function LoginFallback() {
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const next = params.get("next") || "/profile";
+  const next = safeNextPath(params.get("next"));
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

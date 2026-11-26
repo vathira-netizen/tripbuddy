@@ -26,3 +26,17 @@ def validate_storage_image_url(value: str) -> str:
     if not prefix or not value.startswith(prefix):
         raise serializers.ValidationError("Upload the image through TripBuddy.")
     return value
+
+
+MAX_DB_ID = 2**63 - 1
+
+
+def parse_id(value, field: str) -> int:
+    """A database id taken from raw request input, or a 400 naming the field.
+
+    Filtering on ``"abc"`` directly raises inside the ORM and becomes a 500.
+    """
+    text = str(value).strip()
+    if text.isascii() and text.isdigit() and 0 < int(text) <= MAX_DB_ID:
+        return int(text)
+    raise serializers.ValidationError({field: "Enter a valid id."})
