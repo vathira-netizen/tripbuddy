@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 import { Avatar } from "@/components/Avatar";
+import { DeleteAccount } from "@/components/DeleteAccount";
 import { SignOutButton } from "@/components/SignOutButton";
 import { type Connection, listConnections, profileFacts, titleCase } from "@/lib/buddies";
 import { listSaved, type SavedDestination } from "@/lib/discover";
@@ -275,6 +276,8 @@ export default function ProfileView({
           {tab === "saved" && <SavedGrid saved={saved} />}
           {tab === "buddies" && <BuddiesGrid buddies={buddies} />}
         </div>
+
+        <DeleteAccount />
       </div>
     </main>
   );

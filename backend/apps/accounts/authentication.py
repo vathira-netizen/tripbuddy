@@ -47,6 +47,10 @@ ASYMMETRIC_ALGORITHMS = ["ES256", "RS256"]
 _jwk_clients: dict[str, jwt.PyJWKClient] = {}
 
 
+def user_cache_key(supabase_user_id):
+    return f"sb-user:{supabase_user_id}"
+
+
 def get_jwks_client(url):
     client = _jwk_clients.get(url)
     if client is None:
@@ -183,7 +187,7 @@ class SupabaseJWTAuthentication(authentication.BaseAuthentication):
         # re-finding the user. Serve it from a short per-process cache instead;
         # email / verified-flag sync below simply runs when the entry expires.
         # ponytail: a deactivated user keeps working for up to USER_CACHE_SECONDS.
-        cache_key = f"sb-user:{supabase_user_id}"
+        cache_key = user_cache_key(supabase_user_id)
         cached = cache.get(cache_key)
         if cached is not None and cached.is_active:
             return cached

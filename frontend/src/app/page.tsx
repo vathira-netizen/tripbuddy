@@ -731,7 +731,7 @@ export default async function Home() {
           </div>
           <p className="mx-auto w-full max-w-6xl px-4 pb-6 text-xs text-white/50">
             Destination photos are from Wikimedia Commons contributors; credits are listed on each destination page.{" "}
-            <Link href="/privacy" className="underline-offset-2 hover:text-white hover:underline">Cookies &amp; privacy</Link>
+            <Link href="/privacy" className="underline-offset-2 hover:text-white hover:underline">Privacy</Link>
           </p>
         </div>
       </section>
