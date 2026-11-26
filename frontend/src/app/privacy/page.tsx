@@ -132,14 +132,8 @@ export default function PrivacyPage() {
           <li>You can change or remove your profile details at any time from your profile.</li>
           <li>Signing out removes the sign-in cookies from your browser.</li>
           <li>
-            To delete your account and everything we hold about you,{" "}
-            <a
-              href="https://github.com/vathira-netizen/tripbuddy/issues"
-              className="font-semibold text-brand-coral-ink underline underline-offset-2"
-            >
-              contact us
-            </a>
-            .
+            You can delete your account and everything we hold about you at any time, using
+            “Delete my account” at the bottom of your profile page.
           </li>
         </ul>
       </Section>

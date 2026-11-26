@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import UserRateThrottle
 from rest_framework.views import APIView
 
+from apps.accounts.deletion import AccountDeletionError, delete_account
 from apps.accounts.geocoding import GeocodingError, geocode_city
 from apps.accounts.models import Profile
 from apps.accounts.serializers import (
@@ -15,6 +16,8 @@ from apps.accounts.serializers import (
 )
 from apps.common.permissions import IsSelfProfile
 from apps.common.querysets import is_authenticated
+
+DELETE_CONFIRMATION = "DELETE"
 
 
 class ProfileViewSet(viewsets.GenericViewSet):
@@ -87,6 +90,29 @@ class ProfileViewSet(viewsets.GenericViewSet):
         profile.save()
 
         return Response(ProfileSerializer(profile).data, status=status.HTTP_200_OK)
+
+    @extend_schema(request=None, responses={204: None})
+    @action(detail=False, methods=["post"], url_path="delete-account")
+    def delete_account(self, request):
+        """Permanently delete the requesting user's account and all their data.
+
+        The body must be ``{"confirm": "DELETE"}``, so a stray request can't
+        wipe an account. See ``apps.accounts.deletion`` for what is removed.
+        """
+        data = request.data if isinstance(request.data, dict) else {}
+        if data.get("confirm") != DELETE_CONFIRMATION:
+            return Response(
+                {"confirm": [f"Type {DELETE_CONFIRMATION} to confirm."]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            delete_account(request.user, request.auth["sub"])
+        except AccountDeletionError:
+            return Response(
+                {"detail": "We couldn't delete your account right now. Please try again later."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class PublicProfileViewSet(viewsets.ReadOnlyModelViewSet):
