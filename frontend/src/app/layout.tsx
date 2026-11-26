@@ -57,7 +57,7 @@ export default async function RootLayout({
             <div className="flex flex-col gap-1 sm:items-end">
               <span>Budget-first travel planning · plan · match · explore together</span>
               <Link href="/privacy" className="text-xs text-white/70 underline-offset-2 hover:text-white hover:underline">
-                Cookies &amp; privacy
+                Privacy
               </Link>
             </div>
           </div>

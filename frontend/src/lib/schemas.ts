@@ -33,6 +33,7 @@ export const registerSchema = z
     email: emailSchema,
     password: passwordSchema,
     confirmPassword: z.string(),
+    consent: z.literal(true, { message: "Please agree to the privacy notice to continue." }),
   })
   .refine((d) => d.password === d.confirmPassword, {
     message: "Passwords do not match.",

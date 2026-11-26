@@ -62,7 +62,7 @@ export async function updateSession(
     pathname.startsWith("/auth");
 
   // Unauthenticated users may only reach auth routes, the landing page and
-  // the cookies & privacy page.
+  // the privacy page.
   if (!user && !isAuthRoute && pathname !== "/" && pathname !== "/privacy") {
     const url = request.nextUrl.clone();
     url.pathname = "/login";

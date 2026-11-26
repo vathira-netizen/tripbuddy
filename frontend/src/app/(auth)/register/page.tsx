@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
+import { PRIVACY_VERSION } from "@/lib/privacy";
 import { registerSchema } from "@/lib/schemas";
 import { Button, FormError, FormSuccess, Input } from "@/components/ui";
 
@@ -15,6 +16,7 @@ export default function RegisterPage() {
     password: "",
     confirmPassword: "",
   });
+  const [consent, setConsent] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [needsConfirmation, setNeedsConfirmation] = useState(false);
@@ -29,7 +31,7 @@ export default function RegisterPage() {
     setFormError(null);
     setErrors({});
 
-    const parsed = registerSchema.safeParse(values);
+    const parsed = registerSchema.safeParse({ ...values, consent });
     if (!parsed.success) {
       const fieldErrors: Record<string, string> = {};
       for (const issue of parsed.error.issues) {
@@ -46,6 +48,13 @@ export default function RegisterPage() {
       password: parsed.data.password,
       options: {
         emailRedirectTo: `${window.location.origin}/auth/callback?next=/onboarding`,
+        // A record of what the user agreed to, and when.
+        data: {
+          privacy_consent: {
+            version: PRIVACY_VERSION,
+            agreed_at: new Date().toISOString(),
+          },
+        },
       },
     });
     setLoading(false);
@@ -118,6 +127,48 @@ export default function RegisterPage() {
           error={errors.confirmPassword}
           required
         />
+
+        <div className="rounded-2xl border border-line bg-surface-alt p-4 text-sm text-text-muted">
+          <p className="font-semibold text-brand-teal">How we use your data</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            <li>Your profile is used to suggest travel buddies near you.</li>
+            <li>
+              Other travellers see your name, photo, interests and city, never your email or
+              exact location.
+            </li>
+            <li>We don&apos;t sell your data or use advertising or tracking cookies.</li>
+          </ul>
+          <label className="mt-3 flex cursor-pointer items-start gap-2 text-foreground">
+            <input
+              type="checkbox"
+              name="consent"
+              checked={consent}
+              onChange={(e) => setConsent(e.target.checked)}
+              aria-invalid={errors.consent ? true : undefined}
+              aria-describedby={errors.consent ? "consent-error" : undefined}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-brand-teal"
+              required
+            />
+            <span>
+              I agree to TripBuddy using my data as described in the{" "}
+              <Link
+                href="/privacy"
+                target="_blank"
+                rel="noopener"
+                className="font-bold text-brand-coral-ink underline underline-offset-2"
+              >
+                privacy notice
+              </Link>
+              .
+            </span>
+          </label>
+          {errors.consent && (
+            <p id="consent-error" role="alert" className="mt-1.5 text-xs font-semibold text-brand-coral-ink">
+              {errors.consent}
+            </p>
+          )}
+        </div>
+
         <Button variant="coral" type="submit" loading={loading}>
           Create account
         </Button>

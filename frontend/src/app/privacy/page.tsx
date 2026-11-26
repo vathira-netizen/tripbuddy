@@ -1,128 +1,148 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { PRIVACY_UPDATED_LABEL } from "@/lib/privacy";
+
 export const metadata: Metadata = {
-  title: "Cookies & privacy · TripBuddy",
-  description: "What TripBuddy stores in your browser and on its servers, and why.",
+  title: "Privacy · TripBuddy",
+  description: "What TripBuddy collects, why, and who can see it.",
 };
 
-const BROWSER_ITEMS = [
+const COLLECT = [
   {
-    name: "sb-…-auth-token",
-    kind: "Cookie · essential",
-    purpose: "Keeps you signed in. It holds your Supabase session.",
-    lifetime:
-      "7 days, renewed each time you use the site. If you tick “Remember me” when you log in, it lasts 400 days. Removed when you sign out.",
+    title: "Your account",
+    body: "Your email address and password. Your password is stored securely and nobody at TripBuddy can read it.",
   },
   {
-    name: "tb-remember",
-    kind: "Cookie · essential",
-    purpose: "Remembers that you ticked “Remember me”. Holds no personal data.",
-    lifetime: "400 days. Removed when you sign out.",
+    title: "Your profile",
+    body: "Your name, photo, short bio, age range, gender, languages, interests, travel budget and the city you're based in. Adding a UPI ID is optional.",
   },
   {
-    name: "sb-…-code-verifier",
-    kind: "Cookie · essential",
-    purpose: "Used briefly while you confirm your email or reset your password.",
-    lifetime: "Minutes. Removed once the step is done.",
+    title: "What you add",
+    body: "Your trips, plans, budgets, reviews, messages, saved places and travel buddies.",
   },
   {
-    name: "tb:discover-origin",
-    kind: "Browser storage · convenience",
-    purpose:
-      "Your “Travelling from” choice on Discover, so you don’t have to set it each visit. A current location is rounded to about 1 km first.",
-    lifetime:
-      "Until you change it or clear your browser data. Its rounded coordinates go along with Discover searches to measure distances; they aren't saved.",
+    title: "Your location",
+    body: "Only the city you type in. If you choose “Use my current location” on Discover, your browser asks you first, and it's used for that search only. It isn't saved to your profile.",
   },
+];
+
+const USES = [
+  "Suggesting travel buddies near you who share your interests, budget and languages.",
+  "Running your trips: shared plans, group budgets and chat with your group.",
+  "Answering the trip assistant. The trip details you ask about are sent to our AI provider to write suggestions.",
+  "Keeping TripBuddy safe: confirming your email and looking into reports about other users.",
 ];
 
 const SERVICES = [
-  ["Supabase", "Sign-in, and storing profile photos and trip covers."],
-  ["OpenStreetMap", "Map tiles on Discover and destination pages."],
-  ["Wikimedia Commons and Unsplash", "Destination photos and sample traveller photos."],
-  ["QR Server", "Draws the UPI QR code when you settle up a trip budget."],
+  ["Supabase", "Stores your account, profile, trips and photos."],
+  ["AI provider", "Writes trip assistant suggestions."],
+  ["OpenStreetMap", "Shows maps."],
+  ["QR-code service", "Shows a UPI QR code when you settle up a trip budget."],
 ];
 
-/** Public page: linked from the footer and the landing page; no login needed. */
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="mt-10">
+      <h2 className="font-serif text-2xl text-brand-teal">{title}</h2>
+      <div className="mt-3 space-y-3 text-[15px] leading-relaxed text-text-muted">{children}</div>
+    </section>
+  );
+}
+
+/** Public page, linked from the footer, the landing page and sign-up. No login needed. */
 export default function PrivacyPage() {
   return (
     <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-10">
-      <h1 className="font-serif text-4xl leading-tight text-brand-teal">Cookies &amp; privacy</h1>
+      <h1 className="font-serif text-4xl leading-tight text-brand-teal">Your privacy</h1>
       <p className="mt-3 text-[15px] leading-relaxed text-text-muted">
-        TripBuddy stores only what it needs to sign you in and remember a couple of your
-        settings. There are <strong className="text-brand-teal">no advertising, analytics or
-        tracking cookies</strong>, which is why you don&apos;t see a cookie banner.
+        This page explains what TripBuddy collects, why we need it and who can see it.{" "}
+        <strong className="text-brand-teal">We don&apos;t sell your data or show you ads</strong>.
       </p>
+      <p className="mt-2 text-sm text-text-subtle">Last updated {PRIVACY_UPDATED_LABEL}</p>
 
-      <section className="mt-8">
-        <h2 className="font-serif text-2xl text-brand-teal">What&apos;s stored in your browser</h2>
-        <ul className="mt-4 space-y-3">
-          {BROWSER_ITEMS.map((item) => (
-            <li key={item.name} className="rounded-2xl border border-line bg-surface p-4">
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <code className="rounded-md bg-surface-alt px-2 py-0.5 text-sm font-semibold text-brand-teal">
-                  {item.name}
-                </code>
-                <span className="text-xs font-semibold uppercase tracking-wide text-text-subtle">
-                  {item.kind}
-                </span>
-              </div>
-              <p className="mt-2 text-sm text-foreground">{item.purpose}</p>
-              <p className="mt-1 text-sm text-text-subtle">
-                <span className="font-semibold text-text-muted">How long: </span>
-                {item.lifetime}
-              </p>
+      <Section title="What we collect">
+        <ul className="grid gap-3 sm:grid-cols-2">
+          {COLLECT.map((item) => (
+            <li key={item.title} className="rounded-2xl border border-line bg-surface p-4">
+              <p className="font-semibold text-brand-teal">{item.title}</p>
+              <p className="mt-1 text-sm">{item.body}</p>
             </li>
           ))}
         </ul>
-      </section>
+      </Section>
 
-      <section className="mt-10 space-y-3 text-[15px] leading-relaxed text-text-muted">
-        <h2 className="font-serif text-2xl text-brand-teal">What we keep on our servers</h2>
+      <Section title="How we use it">
+        <ul className="list-disc space-y-1.5 pl-5">
+          {USES.map((use) => (
+            <li key={use}>{use}</li>
+          ))}
+        </ul>
+      </Section>
+
+      <Section title="Who can see what">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-2xl border border-line bg-surface p-4">
+            <p className="font-semibold text-brand-teal">Other travellers can see</p>
+            <p className="mt-1 text-sm">
+              Your name, photo, bio, age range, gender, languages, interests, budget style, your
+              city, places you&apos;ve travelled to, and roughly how far away you are (for example
+              “10–25 km”).
+            </p>
+          </div>
+          <div className="rounded-2xl border border-line bg-surface p-4">
+            <p className="font-semibold text-brand-teal">Kept private</p>
+            <p className="mt-1 text-sm">
+              Your email, password, exact location and daily budget. Your UPI ID is shown only to
+              people in your trip who owe you money. Messages are seen only by the people in that
+              chat.
+            </p>
+          </div>
+        </div>
+      </Section>
+
+      <Section title="Cookies">
         <p>
-          The profile details you enter, your trips, budgets, reviews and messages. For buddy
-          matching we keep only an <strong className="text-brand-teal">approximate point for your
-          city</strong>, rounded to about 1 km, never your exact location. If you use
-          “Use my current location” on Discover, it is rounded in your browser and used only to
-          measure distances. It isn&apos;t saved to your profile.
+          We use cookies only to keep you signed in, and to keep you signed in for longer if you
+          tick “Remember me”. Your browser also remembers your “Travelling from” choice on
+          Discover so you don&apos;t have to set it each time.
         </p>
         <p>
-          The AI trip assistant runs on our server. Your browser never talks to the AI provider
-          directly, and the provider receives only the trip details needed to answer.
+          There are <strong className="text-brand-teal">no advertising, analytics or tracking
+          cookies</strong>, which is why you don&apos;t see a cookie banner.
         </p>
-      </section>
+      </Section>
 
-      <section className="mt-10">
-        <h2 className="font-serif text-2xl text-brand-teal">Other services your browser contacts</h2>
-        <ul className="mt-3 divide-y divide-line rounded-2xl border border-line bg-surface">
+      <Section title="Services that help run TripBuddy">
+        <ul className="divide-y divide-line rounded-2xl border border-line bg-surface">
           {SERVICES.map(([name, why]) => (
             <li key={name} className="flex flex-col gap-0.5 px-4 py-3 sm:flex-row sm:gap-4">
-              <span className="w-56 shrink-0 text-sm font-semibold text-brand-teal">{name}</span>
-              <span className="text-sm text-text-muted">{why}</span>
+              <span className="w-44 shrink-0 text-sm font-semibold text-brand-teal">{name}</span>
+              <span className="text-sm">{why}</span>
             </li>
           ))}
         </ul>
-        <p className="mt-3 text-sm text-text-subtle">
-          Our security policy blocks the browser from loading scripts, images or connections from
-          anywhere else.
+        <p className="text-sm text-text-subtle">
+          Each one gets only what it needs to do its job.
         </p>
-      </section>
+      </Section>
 
-      <section className="mt-10 space-y-3 text-[15px] leading-relaxed text-text-muted">
-        <h2 className="font-serif text-2xl text-brand-teal">Clearing it</h2>
-        <p>
-          Signing out removes the sign-in cookies and your “Remember me” choice. To remove
-          everything, clear this site&apos;s data in your browser settings. To delete your account
-          and the data we hold, open an issue on{" "}
-          <a
-            href="https://github.com/vathira-netizen/tripbuddy/issues"
-            className="font-semibold text-brand-coral-ink underline underline-offset-2"
-          >
-            GitHub
-          </a>
-          .
-        </p>
-      </section>
+      <Section title="Your choices">
+        <ul className="list-disc space-y-1.5 pl-5">
+          <li>You can change or remove your profile details at any time from your profile.</li>
+          <li>Signing out removes the sign-in cookies from your browser.</li>
+          <li>
+            To delete your account and everything we hold about you,{" "}
+            <a
+              href="https://github.com/vathira-netizen/tripbuddy/issues"
+              className="font-semibold text-brand-coral-ink underline underline-offset-2"
+            >
+              contact us
+            </a>
+            .
+          </li>
+        </ul>
+      </Section>
 
       <p className="mt-10 text-sm">
         <Link href="/" className="font-semibold text-brand-teal hover:text-brand-coral-ink">
