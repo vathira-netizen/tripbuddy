@@ -19,6 +19,7 @@ from rest_framework.response import Response
 
 from apps.common.permissions import IsOwner
 from apps.common.querysets import is_authenticated
+from apps.common.validators import parse_id
 from apps.destinations.models import Destination, DestinationReview, SavedDestination
 from apps.destinations.serializers import (
     DestinationReviewSerializer,
@@ -162,7 +163,7 @@ class DestinationReviewViewSet(
         qs = DestinationReview.objects.select_related("author__profile")
         destination_id = self.request.query_params.get("destination")
         if destination_id:
-            qs = qs.filter(destination_id=destination_id)
+            qs = qs.filter(destination_id=parse_id(destination_id, "destination"))
         return qs
 
     def perform_create(self, serializer):

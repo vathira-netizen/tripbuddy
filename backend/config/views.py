@@ -28,12 +28,14 @@ def health(request):
 
     from django.conf import settings
     llm_ok = bool(settings.GROQ_API_KEY)
-    body = {"ok": True, "db": db_ok, "llm_configured": llm_ok, "llm_key_len": len(settings.GROQ_API_KEY)}
+    body = {"ok": True, "db": db_ok, "llm_configured": llm_ok}
     # ?llm=1 makes one tiny call to the provider with the server's real
     # settings and reports only the status and the provider's error text (never
     # the key), so a broken key/model can be diagnosed without logging in.
-    # Opt-in so Render's frequent health checks never spend LLM quota.
-    if request.query_params.get("llm") == "1" and llm_ok:
+    # Opt-in so Render's frequent health checks never spend LLM quota, and
+    # limited to staff (or local DEBUG) so strangers can't spend it either.
+    allowed = settings.DEBUG or request.user.is_staff
+    if request.query_params.get("llm") == "1" and llm_ok and allowed:
         body["llm_probe"] = _probe_llm(settings)
     return Response(body)
 

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { safeNextPath } from "@/lib/safe-next";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -10,7 +11,7 @@ import { createClient } from "@/lib/supabase/server";
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl;
   const code = searchParams.get("code");
-  const next = sanitizeNext(searchParams.get("next"));
+  const next = safeNextPath(searchParams.get("next"));
 
   if (code) {
     const supabase = await createClient();
@@ -22,12 +23,4 @@ export async function GET(request: NextRequest) {
 
   // No code, or the exchange failed — bounce to login with a hint.
   return NextResponse.redirect(`${origin}/login?error=auth_callback`);
-}
-
-/** Only allow same-site relative redirects, to avoid an open-redirect. */
-function sanitizeNext(next: string | null): string {
-  if (next && next.startsWith("/") && !next.startsWith("//")) {
-    return next;
-  }
-  return "/profile";
 }

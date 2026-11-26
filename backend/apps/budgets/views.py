@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from apps.budgets.serializers import BudgetItemSerializer
 from apps.common.permissions import IsTripMember
 from apps.common.querysets import visible_budget_items
+from apps.common.validators import parse_id
 
 
 class BudgetItemViewSet(viewsets.ModelViewSet):
@@ -21,5 +22,5 @@ class BudgetItemViewSet(viewsets.ModelViewSet):
         qs = visible_budget_items(self.request.user).select_related("trip", "payer")
         trip_id = self.request.query_params.get("trip")
         if trip_id:
-            qs = qs.filter(trip_id=trip_id)
+            qs = qs.filter(trip_id=parse_id(trip_id, "trip"))
         return qs

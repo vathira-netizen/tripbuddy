@@ -4,7 +4,8 @@ from rest_framework import serializers
 
 from apps.accounts.models import Profile
 from apps.budgets.models import BudgetItem
-from apps.common.permissions import is_trip_member
+from apps.budgets.serializers import MAX_AMOUNT
+from apps.common.permissions import is_trip_member, require_trip_editor
 from apps.common.querysets import accepted_connections
 from apps.common.validators import validate_storage_image_url
 from apps.trips.models import (
@@ -18,6 +19,9 @@ from apps.trips.models import (
 
 
 ITINERARY_NOTES_MAX = 2000
+# Longest AI plan that can be applied to a trip with fewer (or no) dated days;
+# matches the "Days" limit when creating a trip from a chat.
+MAX_PLAN_DAYS = 60
 
 
 class ItineraryItemSerializer(serializers.ModelSerializer):
@@ -51,10 +55,12 @@ class ItineraryItemSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         trip = attrs.get("trip", getattr(self.instance, "trip", None))
         user = self.context["request"].user
-        if trip is not None and not is_trip_member(user, trip):
-            raise serializers.ValidationError(
-                {"trip": "You are not a member of this trip."}
-            )
+        if trip is not None:
+            if not is_trip_member(user, trip):
+                raise serializers.ValidationError(
+                    {"trip": "You are not a member of this trip."}
+                )
+            require_trip_editor(user, trip)
         return attrs
 
 
@@ -135,6 +141,11 @@ class TripSerializer(serializers.ModelSerializer):
         value = value.strip()
         if not value:
             raise serializers.ValidationError("Give the trip a name.")
+        return value
+
+    def validate_target_amount(self, value):
+        if value is not None and value < 0:
+            raise serializers.ValidationError("Enter a budget of ₹0 or more.")
         return value
 
     def validate_cover_image_url(self, value):
@@ -406,10 +417,12 @@ class DraftItemSerializer(serializers.Serializer):
         choices=BudgetItem.Category.values, default=BudgetItem.Category.OTHER
     )
     est_cost = serializers.DecimalField(
-        max_digits=10, decimal_places=2, default=0, min_value=0
+        max_digits=10, decimal_places=2, default=0, min_value=0, max_value=MAX_AMOUNT
     )
     location = serializers.CharField(required=False, allow_blank=True, default="")
-    notes = serializers.CharField(required=False, allow_blank=True, default="")
+    notes = serializers.CharField(
+        required=False, allow_blank=True, default="", max_length=ITINERARY_NOTES_MAX
+    )
 
 
 class DraftDaySerializer(serializers.Serializer):
@@ -423,3 +436,9 @@ class ApplyItinerarySerializer(serializers.Serializer):
     days = DraftDaySerializer(many=True)
     # Also mirror the plan into the Budget Planner as BudgetItems.
     add_to_budget = serializers.BooleanField(default=False)
+
+    def validate_days(self, days):
+        limit = max(MAX_PLAN_DAYS, self.context["trip"].nights + 1)
+        if any(day["day_index"] >= limit for day in days):
+            raise serializers.ValidationError(f"A plan can cover at most {limit} days.")
+        return days
